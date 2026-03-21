@@ -87,6 +87,6 @@ export async function summarizeBill(
     return await summarizeWithGemini(title, billText);
   } catch (err) {
     console.error("Gemini fallback also failed:", err);
-    return { plainLanguage: "Summary unavailable.", keyProvisions: [] };
+    return { plainLanguage: "Summary unavailable.", keyProvisions: [], whyItMatters: "" };
   }
 }
