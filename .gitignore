@@ -1,0 +1,5 @@
+# Never ignore .kiro — required for hackathon submission
+# .kiro/
+
+# OS
+.DS_Store

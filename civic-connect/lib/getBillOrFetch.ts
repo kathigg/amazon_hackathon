@@ -1,0 +1,129 @@
+/**
+ * Fetch a bill from DB if cached, otherwise pull from Congress.gov,
+ * summarize with Gemini, store, and return. Also increments viewCount.
+ */
+import { prisma } from "./prisma";
+import { fetchBillText } from "./congress";
+import { summarizeBill } from "./summarize";
+import { inferTopics } from "./topics";
+import { fetchBillVotes } from "./votes";
+
+const CONGRESS_API_KEY = process.env.CONGRESS_API_KEY!;
+const BASE = "https://api.congress.gov/v3";
+
+export async function getBillOrFetch(billId: string) {
+  // Increment view count if bill exists
+  const existing = await prisma.bill.findUnique({
+    where: { id: billId },
+    include: { summary: true, stances: true },
+  });
+
+  if (existing) {
+    // Fire-and-forget view count increment
+    prisma.bill.update({
+      where: { id: billId },
+      data: { viewCount: { increment: 1 } },
+    }).catch(() => {});
+
+    // Generate summary if missing (e.g. ingest ran before summarize)
+    if (!existing.summary) {
+      await generateAndStoreSummary(existing.id, existing.title, existing.congress, existing.type, existing.number);
+    }
+
+    return prisma.bill.findUnique({
+      where: { id: billId },
+      include: { summary: true, stances: true },
+    });
+  }
+
+  // Not in DB — parse billId format: {type}-{number}-{congress}
+  const parts = billId.split("-");
+  if (parts.length < 3) return null;
+
+  const congress = Number(parts[parts.length - 1]);
+  const number = parts[parts.length - 2];
+  const type = parts.slice(0, parts.length - 2).join("-").toUpperCase();
+
+  // Fetch from Congress.gov
+  const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}?api_key=${CONGRESS_API_KEY}&format=json`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+
+  const data = await res.json();
+  const bill = data.bill;
+  if (!bill) return null;
+
+  const topicTags = inferTopics(bill.title ?? "");
+  const sponsor = bill.sponsors?.[0]?.fullName ?? "Unknown";
+  const status = bill.latestAction?.text ?? "Unknown";
+
+  const created = await prisma.bill.create({
+    data: {
+      id: billId,
+      congress,
+      number,
+      type,
+      title: bill.title ?? billId,
+      sponsor,
+      status,
+      introducedAt: new Date(bill.introducedDate ?? Date.now()),
+      topicTags,
+      fullTextUrl: null,
+      viewCount: 1,
+    },
+  });
+
+  // Summarize in background (awaited so first visitor sees it)
+  await generateAndStoreSummary(created.id, created.title, congress, type, number);
+
+  // Fetch vote stances
+  try {
+    const votes = await fetchBillVotes(congress, type, number);
+    if (votes) {
+      for (const [party, data] of [
+        ["Democrat", votes.democratic],
+        ["Republican", votes.republican],
+      ] as const) {
+        await prisma.stance.create({
+          data: {
+            id: `${billId}-${party}`,
+            billId,
+            party,
+            position: "",
+            voteYes: data.yes,
+            voteNo: data.no,
+            source: "vote_record",
+          },
+        });
+      }
+    }
+  } catch { /* non-fatal */ }
+
+  return prisma.bill.findUnique({
+    where: { id: billId },
+    include: { summary: true, stances: true },
+  });
+}
+
+async function generateAndStoreSummary(
+  billId: string,
+  title: string,
+  congress: number,
+  type: string,
+  number: string
+) {
+  try {
+    const textUrl = await fetchBillText(congress, type, number);
+    let billText = title;
+    if (textUrl) {
+      const r = await fetch(textUrl);
+      if (r.ok) billText = await r.text();
+    }
+    const summary = await summarizeBill(title, billText);
+    await prisma.summary.upsert({
+      where: { billId },
+      update: { plainLanguage: summary.plainLanguage, keyProvisions: summary.keyProvisions },
+      create: { billId, plainLanguage: summary.plainLanguage, keyProvisions: summary.keyProvisions },
+    });
+  } catch { /* non-fatal */ }
+}

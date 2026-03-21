@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Bill {
+  id           String   @id
+  congress     Int
+  number       String
+  type         String
+  title        String
+  sponsor      String
+  status       String
+  introducedAt DateTime
+  topicTags    String[]
+  fullTextUrl  String?
+  viewCount    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  summary  Summary?
+  stances  Stance[]
+  feedback Feedback[]
+
+  @@index([topicTags])
+  @@index([status])
+}
+
+model Summary {
+  id            String   @id @default(cuid())
+  billId        String   @unique
+  bill          Bill     @relation(fields: [billId], references: [id])
+  plainLanguage String
+  keyProvisions String[]
+  generatedAt   DateTime @default(now())
+  flagCount     Int      @default(0)
+}
+
+model Stance {
+  id       String @id @default(cuid())
+  billId   String
+  bill     Bill   @relation(fields: [billId], references: [id])
+  party    String
+  position String
+  voteYes  Int    @default(0)
+  voteNo   Int    @default(0)
+  source   String
+
+  @@index([billId])
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  mission   String
+  website   String?
+  topicTags String[]
+  location  String?
+  events    Event[]
+  createdAt DateTime @default(now())
+}
+
+model Event {
+  id       String       @id @default(cuid())
+  orgId    String
+  org      Organization @relation(fields: [orgId], references: [id])
+  title    String
+  type     String
+  date     DateTime
+  location String
+  rsvps    Rsvp[]
+}
+
+model Rsvp {
+  id      String @id @default(cuid())
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id])
+  email   String
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  billId    String
+  bill      Bill     @relation(fields: [billId], references: [id])
+  reason    String
+  createdAt DateTime @default(now())
+}

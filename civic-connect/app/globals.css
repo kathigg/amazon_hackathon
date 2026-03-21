@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-cream text-navy font-sans antialiased;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-card shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1;
+  }
+
+  .tag {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium;
+  }
+
+  .btn-primary {
+    @apply bg-civic-blue text-white px-6 py-3 rounded-full font-semibold hover:bg-navy transition-colors duration-200;
+  }
+
+  .btn-outline {
+    @apply border-2 border-navy text-navy px-6 py-3 rounded-full font-semibold hover:bg-navy hover:text-white transition-colors duration-200;
+  }
+
+  .status-badge {
+    @apply tag text-xs font-semibold uppercase tracking-wide;
+  }
+}

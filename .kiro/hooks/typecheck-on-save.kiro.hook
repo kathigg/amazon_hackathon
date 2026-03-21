@@ -1,0 +1,18 @@
+{
+  "enabled": false,
+  "name": "TypeCheck on Save",
+  "description": "Runs TypeScript type checking whenever a .ts or .tsx file is edited in the civic-connect project",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "civic-connect/**/*.ts",
+      "civic-connect/**/*.tsx"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "cd civic-connect && npx tsc --noEmit",
+    "timeout": 30
+  }
+}
