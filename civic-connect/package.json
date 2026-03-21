@@ -9,7 +9,8 @@
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
-    "ingest": "tsx scripts/ingest.ts"
+    "ingest": "tsx scripts/ingest.ts",
+    "seed:orgs": "tsx scripts/seed-orgs.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

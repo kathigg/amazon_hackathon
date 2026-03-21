@@ -166,12 +166,14 @@ export default async function BillDetailPage({
                   </div>
                 )}
 
-                {bill.summary.whyItMatters && (
+                {(bill.summary.whyItMatters || bill.summary.plainLanguage) && (
                   <div className="mt-6 p-4 bg-civic-gold/10 border border-civic-gold/30 rounded-xl">
                     <h3 className="font-semibold text-navy mb-2 flex items-center gap-2">
                       <span className="text-civic-gold">★</span> Why This Matters
                     </h3>
-                    <p className="text-sm text-gray-700 leading-relaxed">{bill.summary.whyItMatters}</p>
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      {bill.summary.whyItMatters || bill.summary.plainLanguage}
+                    </p>
                   </div>
                 )}
               </div>
