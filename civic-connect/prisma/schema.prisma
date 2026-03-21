@@ -36,6 +36,7 @@ model Summary {
   bill          Bill     @relation(fields: [billId], references: [id])
   plainLanguage String
   keyProvisions String[]
+  whyItMatters  String   @default("")
   generatedAt   DateTime @default(now())
   flagCount     Int      @default(0)
 }
@@ -55,7 +56,7 @@ model Stance {
 
 model Organization {
   id        String   @id @default(cuid())
-  name      String
+  name      String   @unique
   mission   String
   website   String?
   topicTags String[]

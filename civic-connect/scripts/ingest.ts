@@ -53,6 +53,7 @@ async function main() {
             billId,
             plainLanguage: summary.plainLanguage,
             keyProvisions: summary.keyProvisions,
+            whyItMatters: summary.whyItMatters,
           },
         });
         console.log(`  ✓ Summarized: ${billId}`);

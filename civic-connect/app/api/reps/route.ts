@@ -57,9 +57,9 @@ export async function GET(req: NextRequest) {
 
   const { stateCode, stateName } = location;
 
-  // Fetch current members for this state
+  // Fetch current members for this state using the state-specific endpoint
   const res = await fetch(
-    `${BASE}/member?stateCode=${stateCode}&currentMember=true&limit=50&api_key=${CONGRESS_API_KEY}&format=json`
+    `${BASE}/member/${stateCode}?currentMember=true&limit=50&api_key=${CONGRESS_API_KEY}&format=json`
   );
   if (!res.ok) {
     return NextResponse.json({ error: "Congress.gov API error" }, { status: 502 });

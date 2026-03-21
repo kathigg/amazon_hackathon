@@ -8,6 +8,7 @@
 export interface BillSummary {
   plainLanguage: string;
   keyProvisions: string[];
+  whyItMatters: string;
 }
 
 const PROMPT = (title: string, text: string) =>
@@ -16,7 +17,8 @@ const PROMPT = (title: string, text: string) =>
 Summarize this bill titled "${title}". Return ONLY valid JSON with exactly these fields, no markdown, no explanation:
 {
   "plainLanguage": "2-3 sentence plain English summary of what this bill does",
-  "keyProvisions": ["provision 1", "provision 2", "provision 3"]
+  "keyProvisions": ["provision 1", "provision 2", "provision 3"],
+  "whyItMatters": "1-2 sentences explaining the real-world impact on everyday Americans, stated neutrally without political framing"
 }
 
 Bill text:
@@ -24,15 +26,16 @@ ${text.slice(0, 24000)}`;
 
 function parseResponse(text: string): BillSummary {
   const match = text.match(/\{[\s\S]*\}/);
-  if (!match) return { plainLanguage: "Summary unavailable.", keyProvisions: [] };
+  if (!match) return { plainLanguage: "Summary unavailable.", keyProvisions: [], whyItMatters: "" };
   try {
     const parsed = JSON.parse(match[0]) as BillSummary;
     return {
       plainLanguage: parsed.plainLanguage ?? "Summary unavailable.",
       keyProvisions: Array.isArray(parsed.keyProvisions) ? parsed.keyProvisions : [],
+      whyItMatters: parsed.whyItMatters ?? "",
     };
   } catch {
-    return { plainLanguage: "Summary unavailable.", keyProvisions: [] };
+    return { plainLanguage: "Summary unavailable.", keyProvisions: [], whyItMatters: "" };
   }
 }
 
