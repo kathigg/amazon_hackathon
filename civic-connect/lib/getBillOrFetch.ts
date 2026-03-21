@@ -54,7 +54,10 @@ export async function getBillOrFetch(billId: string) {
   if (!bill) return null;
 
   const topicTags = inferTopics(bill.title ?? "");
-  const sponsor = bill.sponsors?.[0]?.fullName ?? "Unknown";
+  const s = bill.sponsors?.[0];
+  const sponsor = s
+    ? (s.fullName ?? `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || "Unknown")
+    : "Unknown";
   const status = bill.latestAction?.text ?? "Unknown";
 
   const created = await prisma.bill.create({
@@ -122,8 +125,8 @@ async function generateAndStoreSummary(
     const summary = await summarizeBill(title, billText);
     await prisma.summary.upsert({
       where: { billId },
-      update: { plainLanguage: summary.plainLanguage, keyProvisions: summary.keyProvisions },
-      create: { billId, plainLanguage: summary.plainLanguage, keyProvisions: summary.keyProvisions },
+      update: { plainLanguage: summary.plainLanguage, keyProvisions: summary.keyProvisions, whyItMatters: summary.whyItMatters },
+      create: { billId, plainLanguage: summary.plainLanguage, keyProvisions: summary.keyProvisions, whyItMatters: summary.whyItMatters },
     });
   } catch { /* non-fatal */ }
 }
