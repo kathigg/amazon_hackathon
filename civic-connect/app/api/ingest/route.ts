@@ -5,13 +5,25 @@ import { summarizeBill } from "@/lib/summarize";
 import { inferTopics } from "@/lib/topics";
 import { prisma } from "@/lib/prisma";
 
+// Vercel Cron sends GET — proxy to POST logic with CRON_SECRET check
+export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get("authorization");
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return runIngest();
+}
+
 // Protect with a simple secret header
 export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-ingest-secret");
   if (secret !== process.env.INGEST_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  return runIngest();
+}
 
+async function runIngest() {
   const bills = await fetchRecentBills(119, 250);
   let ingested = 0;
   let summarized = 0;

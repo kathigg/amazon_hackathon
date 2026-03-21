@@ -24,6 +24,20 @@ export async function fetchRecentBills(
   return data.bills ?? [];
 }
 
+export async function fetchBillDetail(
+  congress: number,
+  type: string,
+  number: string
+): Promise<{ sponsor: string } | null> {
+  const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}?api_key=${KEY}&format=json`;
+  const res = await fetch(url, { next: { revalidate: 3600 } });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const s = data.bill?.sponsors?.[0];
+  const sponsor = s ? `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() : null;
+  return { sponsor: sponsor || "Unknown" };
+}
+
 export async function fetchBillText(
   congress: number,
   type: string,

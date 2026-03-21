@@ -22,9 +22,10 @@ interface ActionCardProps {
   orgs: Org[];
   events: Event[];
   billId: string;
+  billTags?: string[];
 }
 
-export default function ActionCard({ orgs, events, billId }: ActionCardProps) {
+export default function ActionCard({ orgs, events, billId, billTags = [] }: ActionCardProps) {
   return (
     <div className="card p-6 flex flex-col gap-6">
       <div className="flex items-center gap-2">
@@ -38,26 +39,45 @@ export default function ActionCard({ orgs, events, billId }: ActionCardProps) {
             <Users size={16} className="text-civic-blue" />
             <h4 className="font-semibold text-sm text-gray-700">Active Organizations</h4>
           </div>
-          <ul className="space-y-3">
-            {orgs.slice(0, 3).map((org) => (
-              <li key={org.id} className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-medium text-navy">{org.name}</p>
-                  <p className="text-xs text-gray-500 line-clamp-1">{org.mission}</p>
-                </div>
-                {org.website && (
-                  <a
-                    href={org.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-civic-blue hover:text-navy shrink-0"
-                    aria-label={`Visit ${org.name}`}
-                  >
-                    <ExternalLink size={14} />
-                  </a>
-                )}
-              </li>
-            ))}
+          <ul className="space-y-4">
+            {orgs.slice(0, 3).map((org) => {
+              const matchedTags = billTags.length
+                ? org.topicTags.filter((t) => billTags.includes(t))
+                : [];
+              return (
+                <li key={org.id} className="flex flex-col gap-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-navy">{org.name}</p>
+                      <p className="text-xs text-gray-500 line-clamp-1">{org.mission}</p>
+                    </div>
+                    {org.website && (
+                      <a
+                        href={org.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-civic-blue hover:text-navy shrink-0"
+                        aria-label={`Visit ${org.name}`}
+                      >
+                        <ExternalLink size={14} />
+                      </a>
+                    )}
+                  </div>
+                  {matchedTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {matchedTags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="tag bg-civic-blue/10 text-civic-blue text-xs px-2 py-0.5"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

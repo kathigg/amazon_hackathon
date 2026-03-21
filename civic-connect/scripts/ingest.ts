@@ -3,7 +3,7 @@
  * Fetches bills from Congress.gov, upserts to DB, triggers summarization.
  */
 import { prisma } from "../lib/prisma";
-import { fetchRecentBills, fetchBillText } from "../lib/congress";
+import { fetchRecentBills, fetchBillText, fetchBillDetail } from "../lib/congress";
 import { fetchBillVotes } from "../lib/votes";
 import { summarizeBill } from "../lib/summarize";
 import { inferTopics } from "../lib/topics";
@@ -17,9 +17,14 @@ async function main() {
     const billId = `${bill.type.toLowerCase()}-${bill.number}-${bill.congress}`;
     const topicTags = inferTopics(bill.title);
 
+    // Fetch detail for accurate sponsor name (list endpoint doesn't include it)
+    const detail = await fetchBillDetail(bill.congress, bill.type, bill.number);
+    const sponsor = detail?.sponsor ?? bill.sponsors?.[0]?.fullName ?? "Unknown";
+
     await prisma.bill.upsert({
       where: { id: billId },
       update: {
+        sponsor,
         status: bill.latestAction?.text ?? "Unknown",
         updatedAt: new Date(),
       },
@@ -29,7 +34,7 @@ async function main() {
         number: bill.number,
         type: bill.type,
         title: bill.title,
-        sponsor: bill.sponsors?.[0]?.fullName ?? "Unknown",
+        sponsor,
         status: bill.latestAction?.text ?? "Unknown",
         introducedAt: bill.introducedDate ? new Date(bill.introducedDate) : new Date(),
         topicTags,

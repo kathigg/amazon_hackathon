@@ -62,7 +62,7 @@ async function summarizeWithOllama(title: string, billText: string): Promise<Bil
 async function summarizeWithGemini(title: string, billText: string): Promise<BillSummary> {
   const apiKey = process.env.GOOGLE_GEMINI_KEY;
   if (!apiKey || apiKey === "your_gemini_key_here") {
-    return { plainLanguage: "Summary unavailable (no API key).", keyProvisions: [] };
+    return { plainLanguage: "Summary unavailable (no API key).", keyProvisions: [], whyItMatters: "" };
   }
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
   const genAI = new GoogleGenerativeAI(apiKey);

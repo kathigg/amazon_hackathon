@@ -216,7 +216,7 @@ export default async function BillDetailPage({
         {/* Sidebar — Action Card */}
         <div id="action" className="lg:col-span-1">
           <div className="sticky top-24">
-            <ActionCard orgs={orgs} events={events} billId={bill.id} />
+            <ActionCard orgs={orgs} events={events} billId={bill.id} billTags={bill.topicTags} />
           </div>
         </div>
       </div>
