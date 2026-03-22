@@ -4,3 +4,4 @@ node_modules/
 .env
 prisma/migrations/
 *.tsbuildinfo
+test-data/

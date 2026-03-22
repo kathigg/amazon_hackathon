@@ -5,11 +5,16 @@
 import { prisma } from "./prisma";
 import { fetchBillText, fetchCosponsors } from "./congress";
 import { summarizeBill } from "./summarize";
+import { preprocessBillText } from "./bill-text";
 import { inferTopics } from "./topics";
 import { fetchBillVotes } from "./votes";
 
-const CONGRESS_API_KEY = process.env.CONGRESS_API_KEY!;
 const BASE = "https://api.congress.gov/v3";
+function getCongressApiKey() {
+  const key = process.env.CONGRESS_API_KEY;
+  if (!key) throw new Error("CONGRESS_API_KEY is not set");
+  return key;
+}
 
 export async function getBillOrFetch(billId: string) {
   // Increment view count if bill exists
@@ -50,7 +55,7 @@ export async function getBillOrFetch(billId: string) {
   const type = parts.slice(0, parts.length - 2).join("-").toUpperCase();
 
   // Fetch from Congress.gov
-  const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}?api_key=${CONGRESS_API_KEY}&format=json`;
+  const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}?api_key=${getCongressApiKey()}&format=json`;
   const res = await fetch(url);
   if (!res.ok) return null;
 
@@ -139,7 +144,7 @@ async function generateAndStoreSummary(
     let billText = title;
     if (textUrl) {
       const r = await fetch(textUrl);
-      if (r.ok) billText = await r.text();
+      if (r.ok) billText = preprocessBillText(await r.text());
     }
     const summary = await summarizeBill(title, billText);
     await prisma.summary.upsert({
