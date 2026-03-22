@@ -3,6 +3,10 @@
  * Run with: npx ts-node --project tsconfig.json scripts/seed-orgs.ts
  * Or add to package.json: "seed:orgs": "ts-node scripts/seed-orgs.ts"
  */
+import { config } from "dotenv";
+import { expand } from "dotenv-expand";
+expand(config({ path: ".env.local" }));
+
 import { prisma } from "../lib/prisma";
 
 const orgs = [

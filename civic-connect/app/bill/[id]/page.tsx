@@ -65,8 +65,12 @@ export default async function BillDetailPage({
   }
 
   const { orgs, events } = await getRelatedOrgsAndEvents(bill.topicTags);
-  const demStance = bill.stances.find((s: { party: string }) => s.party === "Democrat");
-  const repStance = bill.stances.find((s: { party: string }) => s.party === "Republican");
+  type StanceWithCosponsors = {
+    id: string; billId: string; party: string; position: string;
+    voteYes: number; voteNo: number; cosponsors?: number; source: string;
+  };
+  const demStance = bill.stances.find((s: StanceWithCosponsors) => s.party === "Democrat") as StanceWithCosponsors | undefined;
+  const repStance = bill.stances.find((s: StanceWithCosponsors) => s.party === "Republican") as StanceWithCosponsors | undefined;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -185,7 +189,29 @@ export default async function BillDetailPage({
           {/* Stance Cards */}
           {(demStance || repStance) && (
             <div id="stances">
-              <h2 className="font-display text-2xl font-bold text-navy mb-4">Party Positions</h2>
+              <h2 className="font-display text-2xl font-bold text-navy mb-2">Party Positions</h2>
+
+              {/* Endorsement summary bar */}
+              {(() => {
+                const totalEndorsed = (demStance?.cosponsors ?? 0) + (repStance?.cosponsors ?? 0);
+                const totalVoted = (demStance?.voteYes ?? 0) + (demStance?.voteNo ?? 0) + (repStance?.voteYes ?? 0) + (repStance?.voteNo ?? 0);
+                if (totalEndorsed === 0 && totalVoted === 0) return null;
+                return (
+                  <div className="flex flex-wrap gap-4 mb-4 p-4 bg-gray-50 rounded-xl text-sm">
+                    {totalEndorsed > 0 && (
+                      <span className="text-navy">
+                        <span className="font-bold">{totalEndorsed}</span> members formally cosponsored
+                      </span>
+                    )}
+                    {totalVoted > 0 && (
+                      <span className="text-navy">
+                        <span className="font-bold">{totalVoted}</span> members cast a recorded vote
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {demStance && (
                   <StanceCard
@@ -193,6 +219,7 @@ export default async function BillDetailPage({
                     position={demStance.position}
                     voteYes={demStance.voteYes}
                     voteNo={demStance.voteNo}
+                    cosponsors={demStance.cosponsors ?? 0}
                     source={demStance.source}
                   />
                 )}
@@ -202,12 +229,13 @@ export default async function BillDetailPage({
                     position={repStance.position}
                     voteYes={repStance.voteYes}
                     voteNo={repStance.voteNo}
+                    cosponsors={repStance.cosponsors ?? 0}
                     source={repStance.source}
                   />
                 )}
               </div>
               <p className="text-xs text-gray-400 mt-3">
-                Vote data sourced from Congress.gov. Positions reflect voting records only — not editorial opinion.
+                Cosponsor data and vote records sourced from Congress.gov. Reflects formal legislative actions only — not editorial opinion.
               </p>
             </div>
           )}

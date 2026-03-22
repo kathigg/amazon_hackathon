@@ -75,18 +75,20 @@ export async function summarizeBill(
   title: string,
   billText: string
 ): Promise<BillSummary> {
-  // Try Ollama first (local, free)
-  try {
-    return await summarizeWithOllama(title, billText);
-  } catch (err) {
-    console.warn("Ollama unavailable, falling back to Gemini:", err);
+  // Skip Ollama on Vercel/production — it's a local-only service
+  if (process.env.NODE_ENV !== "production" && process.env.OLLAMA_ENDPOINT) {
+    try {
+      return await summarizeWithOllama(title, billText);
+    } catch (err) {
+      console.warn("Ollama unavailable, falling back to Gemini:", err);
+    }
   }
 
-  // Fallback to Gemini if key is set
+  // Use Gemini in production (or as fallback)
   try {
     return await summarizeWithGemini(title, billText);
   } catch (err) {
-    console.error("Gemini fallback also failed:", err);
+    console.error("Gemini summarization failed:", err);
     return { plainLanguage: "Summary unavailable.", keyProvisions: [], whyItMatters: "" };
   }
 }

@@ -42,14 +42,15 @@ model Summary {
 }
 
 model Stance {
-  id       String @id @default(cuid())
-  billId   String
-  bill     Bill   @relation(fields: [billId], references: [id])
-  party    String
-  position String
-  voteYes  Int    @default(0)
-  voteNo   Int    @default(0)
-  source   String
+  id            String @id @default(cuid())
+  billId        String
+  bill          Bill   @relation(fields: [billId], references: [id])
+  party         String
+  position      String
+  voteYes       Int    @default(0)
+  voteNo        Int    @default(0)
+  cosponsors    Int    @default(0)
+  source        String
 
   @@index([billId])
 }

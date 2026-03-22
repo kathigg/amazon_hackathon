@@ -14,7 +14,7 @@ export interface CongressBill {
 
 export async function fetchRecentBills(
   congress = 119,
-  limit = 250,
+  limit = 20,
   offset = 0
 ): Promise<CongressBill[]> {
   const url = `${BASE}/bill/${congress}?limit=${limit}&offset=${offset}&api_key=${KEY}&format=json`;
@@ -36,6 +36,46 @@ export async function fetchBillDetail(
   const s = data.bill?.sponsors?.[0];
   const sponsor = s ? `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() : null;
   return { sponsor: sponsor || "Unknown" };
+}
+
+export interface CosponsorTally {
+  democratic: number;
+  republican: number;
+  independent: number;
+  total: number;
+}
+
+export async function fetchCosponsors(
+  congress: number,
+  type: string,
+  number: string
+): Promise<CosponsorTally> {
+  const tally: CosponsorTally = { democratic: 0, republican: 0, independent: 0, total: 0 };
+  let offset = 0;
+  const limit = 250;
+
+  // Page through all cosponsors (bills can have hundreds)
+  while (true) {
+    const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}/cosponsors?api_key=${KEY}&format=json&limit=${limit}&offset=${offset}`;
+    const res = await fetch(url, { next: { revalidate: 3600 } });
+    if (!res.ok) break;
+    const data = await res.json();
+    const cosponsors: Array<{ party: string }> = data.cosponsors ?? [];
+    if (cosponsors.length === 0) break;
+
+    for (const c of cosponsors) {
+      const p = c.party?.toUpperCase();
+      if (p === "D") tally.democratic++;
+      else if (p === "R") tally.republican++;
+      else tally.independent++;
+      tally.total++;
+    }
+
+    if (cosponsors.length < limit) break;
+    offset += limit;
+  }
+
+  return tally;
 }
 
 export async function fetchBillText(

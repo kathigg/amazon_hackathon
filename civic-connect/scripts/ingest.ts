@@ -2,15 +2,19 @@
  * Bill ingestion script — run with: npm run ingest
  * Fetches bills from Congress.gov, upserts to DB, triggers summarization.
  */
+import { config } from "dotenv";
+import { expand } from "dotenv-expand";
+expand(config({ path: ".env.local" }));
+
 import { prisma } from "../lib/prisma";
-import { fetchRecentBills, fetchBillText, fetchBillDetail } from "../lib/congress";
+import { fetchRecentBills, fetchBillText, fetchBillDetail, fetchCosponsors } from "../lib/congress";
 import { fetchBillVotes } from "../lib/votes";
 import { summarizeBill } from "../lib/summarize";
 import { inferTopics } from "../lib/topics";
 
 async function main() {
   console.log("Starting bill ingestion...");
-  const bills = await fetchRecentBills(119, 250);
+  const bills = await fetchRecentBills(119, 20);
   console.log(`Fetched ${bills.length} bills from Congress.gov`);
 
   for (const bill of bills) {
@@ -67,31 +71,39 @@ async function main() {
       }
     }
 
-    // Fetch vote data for stance cards
+    // Fetch vote data and cosponsor counts for stance cards
     try {
-      const votes = await fetchBillVotes(bill.congress, bill.type, bill.number);
-      if (votes) {
-        for (const [party, data] of [
-          ["Democrat", votes.democratic],
-          ["Republican", votes.republican],
-        ] as const) {
-          await prisma.stance.upsert({
-            where: { id: `${billId}-${party}` },
-            update: { voteYes: data.yes, voteNo: data.no },
-            create: {
-              id: `${billId}-${party}`,
-              billId,
-              party,
-              position: "",
-              voteYes: data.yes,
-              voteNo: data.no,
-              source: "vote_record",
-            },
-          });
-        }
+      const [votes, cosponsors] = await Promise.all([
+        fetchBillVotes(bill.congress, bill.type, bill.number),
+        fetchCosponsors(bill.congress, bill.type, bill.number),
+      ]);
+
+      for (const [party, voteData, cosponsorCount] of [
+        ["Democrat", votes?.democratic ?? { yes: 0, no: 0 }, cosponsors.democratic],
+        ["Republican", votes?.republican ?? { yes: 0, no: 0 }, cosponsors.republican],
+      ] as const) {
+        await prisma.stance.upsert({
+          where: { id: `${billId}-${party}` },
+          update: {
+            voteYes: voteData.yes,
+            voteNo: voteData.no,
+            cosponsors: cosponsorCount,
+          },
+          create: {
+            id: `${billId}-${party}`,
+            billId,
+            party,
+            position: "",
+            voteYes: voteData.yes,
+            voteNo: voteData.no,
+            cosponsors: cosponsorCount,
+            source: votes ? "vote_record" : "cosponsors",
+          },
+        });
       }
-    } catch {
-      // Vote data is optional — continue
+      console.log(`  ✓ Stances: ${billId} (D cosponsors: ${cosponsors.democratic}, R cosponsors: ${cosponsors.republican})`);
+    } catch (err) {
+      console.error(`  ✗ Stance fetch failed for ${billId}:`, err);
     }
   }
 
