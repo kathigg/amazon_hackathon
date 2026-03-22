@@ -3,7 +3,7 @@
  * summarize with Gemini, store, and return. Also increments viewCount.
  */
 import { prisma } from "./prisma";
-import { fetchBillText } from "./congress";
+import { fetchBillText, fetchCosponsors } from "./congress";
 import { summarizeBill } from "./summarize";
 import { inferTopics } from "./topics";
 import { fetchBillVotes } from "./votes";
@@ -19,15 +19,20 @@ export async function getBillOrFetch(billId: string) {
   });
 
   if (existing) {
-    // Fire-and-forget view count increment
+    // Fire-and-forget: increment view count
     prisma.bill.update({
       where: { id: billId },
       data: { viewCount: { increment: 1 } },
     }).catch(() => {});
 
-    // Generate summary if missing (e.g. ingest ran before summarize)
+    // Generate summary on-demand if missing
     if (!existing.summary) {
       await generateAndStoreSummary(existing.id, existing.title, existing.congress, existing.type, existing.number);
+    }
+
+    // Fetch stances on-demand if missing (bill was ingested before stance data was available)
+    if (existing.stances.length === 0) {
+      await fetchAndStoreStances(billId, existing.congress, existing.type, existing.number);
     }
 
     return prisma.bill.findUnique({
@@ -56,7 +61,7 @@ export async function getBillOrFetch(billId: string) {
   const topicTags = inferTopics(bill.title ?? "");
   const s = bill.sponsors?.[0];
   const sponsor = s
-    ? (s.fullName ?? `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || "Unknown")
+    ? (s.fullName ?? (`${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || "Unknown"))
     : "Unknown";
   const status = bill.latestAction?.text ?? "Unknown";
 
@@ -79,33 +84,47 @@ export async function getBillOrFetch(billId: string) {
   // Summarize in background (awaited so first visitor sees it)
   await generateAndStoreSummary(created.id, created.title, congress, type, number);
 
-  // Fetch vote stances
-  try {
-    const votes = await fetchBillVotes(congress, type, number);
-    if (votes) {
-      for (const [party, data] of [
-        ["Democrat", votes.democratic],
-        ["Republican", votes.republican],
-      ] as const) {
-        await prisma.stance.create({
-          data: {
-            id: `${billId}-${party}`,
-            billId,
-            party,
-            position: "",
-            voteYes: data.yes,
-            voteNo: data.no,
-            source: "vote_record",
-          },
-        });
-      }
-    }
-  } catch { /* non-fatal */ }
+  // Fetch vote stances and cosponsors
+  await fetchAndStoreStances(billId, congress, type, number);
 
   return prisma.bill.findUnique({
     where: { id: billId },
     include: { summary: true, stances: true },
   });
+}
+
+async function fetchAndStoreStances(
+  billId: string,
+  congress: number,
+  type: string,
+  number: string
+) {
+  try {
+    const [votes, cosponsors] = await Promise.all([
+      fetchBillVotes(congress, type, number),
+      fetchCosponsors(congress, type, number),
+    ]);
+
+    for (const [party, voteData, cosponsorCount] of [
+      ["Democrat", votes?.democratic ?? { yes: 0, no: 0 }, cosponsors.democratic],
+      ["Republican", votes?.republican ?? { yes: 0, no: 0 }, cosponsors.republican],
+    ] as const) {
+      await prisma.stance.upsert({
+        where: { id: `${billId}-${party}` },
+        update: { voteYes: voteData.yes, voteNo: voteData.no, cosponsors: cosponsorCount },
+        create: {
+          id: `${billId}-${party}`,
+          billId,
+          party,
+          position: "",
+          voteYes: voteData.yes,
+          voteNo: voteData.no,
+          cosponsors: cosponsorCount,
+          source: votes ? "vote_record" : "cosponsors",
+        },
+      });
+    }
+  } catch { /* non-fatal */ }
 }
 
 async function generateAndStoreSummary(

@@ -5,6 +5,7 @@ import ActionCard from "@/components/ActionCard";
 import FeedbackButton from "@/components/FeedbackButton";
 import SummaryLoading from "@/components/SummaryLoading";
 import BillProgressFlow from "@/components/BillProgressFlow";
+import PageViewTracker from "@/components/PageViewTracker";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle, Clock, AlertCircle } from "lucide-react";
 
@@ -74,6 +75,7 @@ export default async function BillDetailPage({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <PageViewTracker billId={bill.id} />
       {/* Back */}
       <Link
         href="/bills"

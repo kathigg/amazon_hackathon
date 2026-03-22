@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import PageViewTracker from "@/components/PageViewTracker";
 
 export const metadata: Metadata = {
   title: "CivicConnect — Understand Your Laws",
@@ -23,6 +24,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen flex flex-col">
         <Navbar />
+        <PageViewTracker />
         <main className="flex-1">{children}</main>
         <Footer />
       </body>
