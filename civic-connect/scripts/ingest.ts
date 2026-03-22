@@ -3,8 +3,7 @@
  * Fetches bills from Congress.gov, upserts to DB, triggers summarization.
  */
 import { config } from "dotenv";
-import { expand } from "dotenv-expand";
-expand(config({ path: ".env.local" }));
+config({ path: ".env.local" });
 
 import { prisma } from "../lib/prisma";
 import { fetchRecentBills, fetchBillText, fetchBillDetail, fetchCosponsors } from "../lib/congress";
