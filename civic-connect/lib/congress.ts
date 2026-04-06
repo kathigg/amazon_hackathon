@@ -1,5 +1,9 @@
 const BASE = "https://api.congress.gov/v3";
-const KEY = process.env.CONGRESS_API_KEY!;
+function getKey() {
+  const key = process.env.CONGRESS_API_KEY;
+  if (!key) throw new Error("CONGRESS_API_KEY is not set");
+  return key;
+}
 
 export interface CongressBill {
   congress: number;
@@ -17,7 +21,7 @@ export async function fetchRecentBills(
   limit = 20,
   offset = 0
 ): Promise<CongressBill[]> {
-  const url = `${BASE}/bill/${congress}?limit=${limit}&offset=${offset}&api_key=${KEY}&format=json`;
+  const url = `${BASE}/bill/${congress}?limit=${limit}&offset=${offset}&api_key=${getKey()}&format=json`;
   const res = await fetch(url, { next: { revalidate: 3600 } });
   if (!res.ok) throw new Error(`Congress API error: ${res.status}`);
   const data = await res.json();
@@ -29,7 +33,7 @@ export async function fetchBillDetail(
   type: string,
   number: string
 ): Promise<{ sponsor: string } | null> {
-  const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}?api_key=${KEY}&format=json`;
+  const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}?api_key=${getKey()}&format=json`;
   const res = await fetch(url, { next: { revalidate: 3600 } });
   if (!res.ok) return null;
   const data = await res.json();
@@ -56,7 +60,7 @@ export async function fetchCosponsors(
 
   // Page through all cosponsors (bills can have hundreds)
   while (true) {
-    const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}/cosponsors?api_key=${KEY}&format=json&limit=${limit}&offset=${offset}`;
+    const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}/cosponsors?api_key=${getKey()}&format=json&limit=${limit}&offset=${offset}`;
     const res = await fetch(url, { next: { revalidate: 3600 } });
     if (!res.ok) break;
     const data = await res.json();
@@ -83,7 +87,7 @@ export async function fetchBillText(
   type: string,
   number: string
 ): Promise<string | null> {
-  const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}/text?api_key=${KEY}&format=json`;
+  const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}/text?api_key=${getKey()}&format=json`;
   const res = await fetch(url, { next: { revalidate: 86400 } });
   if (!res.ok) return null;
   const data = await res.json();

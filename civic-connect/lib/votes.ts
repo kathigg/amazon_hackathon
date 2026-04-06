@@ -4,7 +4,11 @@
  */
 
 const BASE = "https://api.congress.gov/v3";
-const KEY = process.env.CONGRESS_API_KEY!;
+function getKey() {
+  const key = process.env.CONGRESS_API_KEY;
+  if (!key) throw new Error("CONGRESS_API_KEY is not set");
+  return key;
+}
 
 export interface VoteResult {
   democratic: { yes: number; no: number };
@@ -17,7 +21,7 @@ export async function fetchBillVotes(
   billNumber: string
 ): Promise<VoteResult | null> {
   // Fetch recorded votes associated with this bill's actions
-  const url = `${BASE}/bill/${congress}/${billType.toLowerCase()}/${billNumber}/actions?api_key=${KEY}&format=json&limit=20`;
+  const url = `${BASE}/bill/${congress}/${billType.toLowerCase()}/${billNumber}/actions?api_key=${getKey()}&format=json&limit=20`;
   const res = await fetch(url, { next: { revalidate: 3600 } });
   if (!res.ok) return null;
 
@@ -32,7 +36,7 @@ export async function fetchBillVotes(
   const { chamber, rollNumber, sessionNumber } = voteAction.recordedVotes[0];
   const chamberPath = chamber.toLowerCase() === "senate" ? "senate" : "house";
 
-  const voteUrl = `${BASE}/congressional-record/${congress}/${chamberPath}/votes/${sessionNumber}/${rollNumber}?api_key=${KEY}&format=json`;
+  const voteUrl = `${BASE}/congressional-record/${congress}/${chamberPath}/votes/${sessionNumber}/${rollNumber}?api_key=${getKey()}&format=json`;
   const voteRes = await fetch(voteUrl, { next: { revalidate: 3600 } });
   if (!voteRes.ok) return null;
 

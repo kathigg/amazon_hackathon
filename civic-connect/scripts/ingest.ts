@@ -9,6 +9,7 @@ import { prisma } from "../lib/prisma";
 import { fetchRecentBills, fetchBillText, fetchBillDetail, fetchCosponsors } from "../lib/congress";
 import { fetchBillVotes } from "../lib/votes";
 import { summarizeBill } from "../lib/summarize";
+import { preprocessBillText } from "../lib/bill-text";
 import { inferTopics } from "../lib/topics";
 
 async function main() {
@@ -53,7 +54,7 @@ async function main() {
         let billText = bill.title;
         if (textUrl) {
           const textRes = await fetch(textUrl);
-          if (textRes.ok) billText = await textRes.text();
+          if (textRes.ok) billText = preprocessBillText(await textRes.text());
         }
         const summary = await summarizeBill(bill.title, billText);
         await prisma.summary.create({

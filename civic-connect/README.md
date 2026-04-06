@@ -45,7 +45,7 @@ CivicConnect is a web-first platform modeled on [Bijak Memilih](https://bijakmem
 ### Key Features
 
 - Live bill data from the Congress.gov API (119th Congress)
-- Google Gemini 1.5 Flash generates plain-language summaries at an 8th-grade reading level
+- AI-generated plain-language summaries via Vercel AI SDK (Ollama/Gemini/Claude/GPT — configurable per environment)
 - Official bill title always shown alongside AI summary for transparency
 - User feedback mechanism to flag potentially biased summaries
 - Party vote breakdowns sourced from Congress.gov recorded votes
@@ -65,7 +65,7 @@ CivicConnect is a web-first platform modeled on [Bijak Memilih](https://bijakmem
 |---|---|---|
 | Framework | Next.js 14 App Router | Consolidates frontend and backend into one deployable unit. Server components fetch from Postgres with zero client-side waterfalls. |
 | Database | PostgreSQL via Prisma | Relational structure fits the bill/summary/stance relationships well. Prisma gives type-safe queries and easy migrations. |
-| AI | Google Gemini 1.5 Flash | Free tier (15 RPM, 1M tokens/day) is enough for batch ingestion of 250 bills. `responseMimeType: "application/json"` enforces structured output without fragile prompt parsing. |
+| AI | Vercel AI SDK (multi-provider) | Unified `generateObject()` API with structured output via zod schema. Supports Ollama (local GPU), Google Gemini, Anthropic Claude, and OpenAI — swap providers via env var, no code changes. Prompt design informed by BillSum research (Kornilova & Eidelman, 2019). |
 | Styling | Tailwind CSS | Utility-first keeps styles co-located with components and avoids stylesheet sprawl. |
 | Deployment | Docker Compose (local) + Vercel (production) | Docker gives a reproducible local environment. Vercel handles cron, edge functions, and zero-config deploys. |
 
@@ -78,9 +78,10 @@ Browser
         ├── /orgs, /orgs/register  — Advocacy org directory
         ├── /bill/[id]/contact     — Rep contact by ZIP
         └── /api/*                 — API routes (bills, orgs, reps, ingest)
-              ├── Congress.gov API     — bill metadata, text, votes
-              ├── Google Gemini API    — AI summarization
-              └── Google Civic API    — representative lookup
+              ├── Congress.gov API        — bill metadata, text, votes
+              ├── Vercel AI SDK           — summarization (Ollama / Gemini / Claude / GPT)
+              │     └── lib/bill-text.ts  — HTML→clean text preprocessing
+              └── Google Civic API        — representative lookup
         └── Prisma ORM → PostgreSQL
 ```
 
@@ -88,7 +89,7 @@ Browser
 
 **Server components by default** — all data fetching happens on the server. Faster page loads, no exposed API keys, but any interactive UI (buttons, forms) needs to be a separate client component. The rule here is simple: server components fetch data, client components handle interactivity.
 
-**Pre-generated summaries** — AI summaries are generated at ingest time and stored in the database. No LLM calls at page load, which keeps things fast and predictable. The trade-off is summaries don't refresh unless you re-run ingestion.
+**Pre-generated summaries** — AI summaries are generated at ingest time and stored in the database, with on-demand generation when a user visits a bill without a summary. Bill text is preprocessed (HTML stripped, whitespace normalized, smart-truncated at section boundaries) before being sent to the LLM. The prompt is informed by the BillSum corpus research — focusing on action verbs, interpreting amendment effects rather than quoting legal mechanics, and covering the entire bill rather than just the beginning.
 
 **Congress.gov only (no ProPublica)** — ProPublica's Congress API was deprecated in 2024. All bill data and vote records now come from the official Congress.gov API, which provides the same vote data via its actions endpoint.
 
@@ -158,7 +159,8 @@ The entire application — 25+ files including Prisma schema, 8 API routes, 8 Re
 - **ProPublica deprecation** — discovered mid-build that ProPublica's Congress API was shut down in 2024. Pivoted to Congress.gov's own vote endpoints with minimal disruption, but it required updating both the ingestion script and the design doc.
 - **Next.js config format** — Next 14.2 doesn't support `next.config.ts`. The config needs to be `.mjs`. Small thing, but it caused a confusing build error early on.
 - **Static prerendering with a database** — Next.js tries to statically prerender pages at build time. Any page that calls Prisma at build time fails without a database available. Fixed with `export const dynamic = "force-dynamic"` on every data page.
-- **Structured AI output** — getting Gemini to return consistent JSON required `responseMimeType: "application/json"` in the API call, not just prompt instructions. Once that was in place, the output was reliable.
+- **Structured AI output** — originally used Gemini's `responseMimeType: "application/json"` with regex parsing. Replaced with Vercel AI SDK's `generateObject()` which uses zod schemas for type-safe structured output across any provider — no regex parsing, no format inconsistencies.
+- **Raw bill text quality** — Congress.gov "Formatted Text" is HTML-wrapped preformatted text with entity encoding, headers, and attestation blocks. Passing this directly to the LLM produced noisy summaries. Added a preprocessing step (`lib/bill-text.ts`) that strips HTML, removes boilerplate, normalizes whitespace, and truncates at section boundaries rather than mid-sentence.
 
 ### Lessons
 
@@ -206,19 +208,47 @@ App runs at `http://localhost:3000`. On first boot Docker will automatically:
 ```bash
 npm install
 npx prisma db push
-npm run ingest
 npm run seed:orgs   # loads the advocacy organization directory
+npm run ingest      # fetches 20 bills + generates AI summaries
 npm run dev
+```
+
+### Local AI with Ollama (optional)
+
+If you have a GPU and want to run summarization locally instead of using a cloud API:
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sudo sh
+ollama serve                    # in a separate terminal
+ollama pull qwen3:4b            # or any model you prefer
+```
+
+Then set in `.env.local`:
+```env
+AI_PROVIDER=ollama
+AI_MODEL=qwen3:4b
 ```
 
 ### Environment Variables
 
 ```env
 CONGRESS_API_KEY=        # free at api.congress.gov
-GOOGLE_GEMINI_KEY=       # free at aistudio.google.com
 GOOGLE_CIVIC_API_KEY=    # console.cloud.google.com — use IP restriction
 DATABASE_URL=            # postgresql://user:pass@host:5432/civicconnect
 INGEST_SECRET=           # any random string
+
+# AI Summarization — pick a provider
+AI_PROVIDER=google       # "ollama", "google", "anthropic", or "openai"
+AI_MODEL=gemini-2.0-flash  # model name for chosen provider
+
+# For local dev with GPU (e.g. RTX 4090):
+# AI_PROVIDER=ollama
+# AI_MODEL=qwen3:4b
+
+# Provider API keys (only need the one matching AI_PROVIDER)
+GOOGLE_GEMINI_KEY=       # free at aistudio.google.com
+# ANTHROPIC_API_KEY=     # console.anthropic.com
+# OPENAI_API_KEY=        # platform.openai.com
 ```
 
 ### Manual Bill Ingestion
@@ -246,9 +276,9 @@ curl -X POST https://your-domain.com/api/ingest \
 
 ## Data Sources
 
-- [Congress.gov API](https://api.congress.gov) — U.S. Library of Congress, bill metadata and vote records
+- [Congress.gov API](https://api.congress.gov) — U.S. Library of Congress, bill metadata, text, and vote records
 - [Google Civic Information API](https://developers.google.com/civic-information) — representative lookup by address
-- [Google Gemini API](https://aistudio.google.com) — AI summarization
+- [Vercel AI SDK](https://sdk.vercel.ai) — unified AI provider interface (Ollama, Google Gemini, Anthropic Claude, OpenAI)
 
 ---
 
