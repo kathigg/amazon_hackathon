@@ -112,20 +112,24 @@ ${billText}`;
 export async function summarizeBill(
   title: string,
   billText: string
-): Promise<BillSummary> {
+): Promise<BillSummary & { aiProvider: string; aiModel: string }> {
+  const aiProvider = process.env.AI_PROVIDER ?? "google";
+  const aiModel = process.env.AI_MODEL ?? "gemini-2.0-flash";
   try {
     const { object } = await generateObject({
       model: getModel(),
       schema: summarySchema,
       prompt: buildPrompt(title, billText),
     });
-    return object;
+    return { ...object, aiProvider, aiModel };
   } catch (err) {
     console.error("Summarization failed:", err);
     return {
       plainLanguage: "Summary unavailable.",
       keyProvisions: [],
       whyItMatters: "",
+      aiProvider,
+      aiModel,
     };
   }
 }

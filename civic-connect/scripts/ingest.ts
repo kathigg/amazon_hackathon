@@ -63,6 +63,8 @@ async function main() {
             plainLanguage: summary.plainLanguage,
             keyProvisions: summary.keyProvisions,
             whyItMatters: summary.whyItMatters,
+            aiProvider: summary.aiProvider,
+            aiModel: summary.aiModel,
           },
         });
         console.log(`  ✓ Summarized: ${billId}`);
