@@ -52,8 +52,11 @@ function getModel() {
       return ollamaProvider(modelName ?? "qwen3:0.6b");
     }
     case "google": {
-      const { google } = require("@ai-sdk/google");
-      return google(modelName ?? "gemini-2.0-flash");
+      const { createGoogleGenerativeAI } = require("@ai-sdk/google");
+      const googleProvider = createGoogleGenerativeAI({
+        apiKey: process.env.GOOGLE_GEMINI_KEY ?? process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+      });
+      return googleProvider(modelName ?? "gemini-2.0-flash");
     }
     case "anthropic": {
       const { anthropic } = require("@ai-sdk/anthropic");
