@@ -37,6 +37,8 @@ model Summary {
   plainLanguage String
   keyProvisions String[]
   whyItMatters  String   @default("")
+  aiProvider    String?
+  aiModel       String?
   generatedAt   DateTime @default(now())
   flagCount     Int      @default(0)
 }
