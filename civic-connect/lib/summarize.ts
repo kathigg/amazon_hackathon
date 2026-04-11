@@ -56,7 +56,7 @@ function getModel() {
       const googleProvider = createGoogleGenerativeAI({
         apiKey: process.env.GOOGLE_GEMINI_KEY ?? process.env.GOOGLE_GENERATIVE_AI_API_KEY,
       });
-      return googleProvider(modelName ?? "gemini-2.0-flash");
+      return googleProvider(modelName ?? "gemini-1.5-flash");
     }
     case "anthropic": {
       const { anthropic } = require("@ai-sdk/anthropic");
@@ -117,7 +117,7 @@ export async function summarizeBill(
   billText: string
 ): Promise<BillSummary & { aiProvider: string; aiModel: string }> {
   const aiProvider = process.env.AI_PROVIDER ?? "google";
-  const aiModel = process.env.AI_MODEL ?? "gemini-2.0-flash";
+  const aiModel = process.env.AI_MODEL ?? "gemini-1.5-flash";
   try {
     const { object } = await generateObject({
       model: getModel(),
