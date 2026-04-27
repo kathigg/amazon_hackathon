@@ -94,6 +94,49 @@ model Feedback {
   createdAt DateTime @default(now())
 }
 
+model Representative {
+  id          String   @id @default(cuid())
+  bioguideId  String   @unique
+  firstName   String
+  lastName    String
+  party       String   // D, R, I
+  chamber     String   // house, senate
+  state       String
+  district    String?  // For House members
+  websiteUrl  String?
+  lastScraped DateTime?
+  createdAt   DateTime @default(now())
+  
+  stances     RepStance[]
+}
+
+model RepStance {
+  id              String   @id @default(cuid())
+  repId           String
+  representative  Representative @relation(fields: [repId], references: [id])
+  billId          String
+  stance          String   // strong_support, possible_support, neutral, possible_reject, strong_reject
+  confidence      Float    @default(0.5)
+  reasoning       String?
+  source          String   // scraped, inferred, vote
+  scrapedAt       DateTime @default(now())
+  
+  @@unique([repId, billId])
+  @@index([billId])
+  @@index([stance])
+}
+
+model ScrapedContent {
+  id          String   @id @default(cuid())
+  repId       String
+  url         String
+  content     String   @db.Text
+  scrapedAt   DateTime @default(now())
+  
+  @@index([repId])
+  @@index([scrapedAt])
+}
+
 model PageView {
   id        String   @id @default(cuid())
   path      String
