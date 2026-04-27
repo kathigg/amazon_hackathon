@@ -4,6 +4,7 @@ import { getUserId } from "@/lib/user-tracking";
 import { getPersonalizedBills } from "@/lib/recommendations";
 import IssueCard from "@/components/IssueCard";
 import BillLookup from "@/components/BillLookup";
+import CongressVisualization from "@/components/CongressVisualization";
 import { TOPIC_TAGS } from "@/lib/topics";
 
 export const dynamic = "force-dynamic";
@@ -34,9 +35,37 @@ async function getFeaturedBills(userId?: string) {
   }
 }
 
+async function getBillsForVisualization() {
+  try {
+    const bills = await prisma.bill.findMany({
+      take: 100,
+      orderBy: { introducedAt: "desc" },
+      select: { id: true, title: true, status: true },
+    });
+
+    return bills.map((bill) => ({
+      ...bill,
+      stage: classifyBillStage(bill.status),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function classifyBillStage(status: string): "introduced" | "committee" | "house_passed" | "senate" | "signed" | "vetoed" {
+  const lower = status.toLowerCase();
+  if (lower.includes("became law") || lower.includes("signed")) return "signed";
+  if (lower.includes("vetoed")) return "vetoed";
+  if (lower.includes("passed senate") || lower.includes("senate")) return "senate";
+  if (lower.includes("passed house")) return "house_passed";
+  if (lower.includes("committee")) return "committee";
+  return "introduced";
+}
+
 export default async function HomePage() {
   const userId = await getUserId().catch(() => undefined);
   const bills = await getFeaturedBills(userId);
+  const visualizationBills = await getBillsForVisualization();
   const isPersonalized = !!userId;
 
   return (
@@ -134,7 +163,7 @@ export default async function HomePage() {
       </section>
 
       {/* Featured bills */}
-      <section className="py-8 px-4 pb-24">
+      <section className="py-8 px-4">
         <div className="max-w-7xl mx-auto">
           {bills.length > 0 ? (
             <>
@@ -175,6 +204,21 @@ export default async function HomePage() {
               <Link href="/bills" className="btn-primary inline-block">Browse Bills</Link>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Congress Visualization */}
+      <section className="py-16 px-4 pb-24 bg-gradient-to-b from-white to-blue-50">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-8">
+            <h2 className="font-display text-3xl font-bold text-navy mb-2">
+              Bills in Motion
+            </h2>
+            <p className="text-gray-500">
+              Real-time visualization of where bills are in the legislative process
+            </p>
+          </div>
+          <CongressVisualization bills={visualizationBills} />
         </div>
       </section>
     </>
