@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { getUserId } from "@/lib/user-tracking";
+import { getPersonalizedBills } from "@/lib/recommendations";
 import IssueCard from "@/components/IssueCard";
 import { TOPIC_TAGS } from "@/lib/topics";
 import Link from "next/link";
@@ -9,33 +11,74 @@ interface SearchParams {
   q?: string;
   topic?: string;
   page?: string;
+  personalized?: string;
 }
 
 const PAGE_SIZE = 12;
 
-async function getBills(q?: string, topic?: string, page = 1) {
+async function getBills(
+  q?: string,
+  topic?: string,
+  page = 1,
+  userId?: string,
+  personalized = true
+) {
   const skip = (page - 1) * PAGE_SIZE;
-  const where = {
-    ...(q && {
-      title: { contains: q, mode: "insensitive" as const },
-    }),
-    ...(topic && {
-      topicTags: { has: topic },
-    }),
-  };
 
+  // If search or topic filter, use standard query
+  if (q || topic || !personalized) {
+    const where = {
+      ...(q && {
+        title: { contains: q, mode: "insensitive" as const },
+      }),
+      ...(topic && {
+        topicTags: { has: topic },
+      }),
+    };
+
+    const [bills, total] = await Promise.all([
+      prisma.bill.findMany({
+        where,
+        take: PAGE_SIZE,
+        skip,
+        orderBy: { introducedAt: "desc" },
+        include: { summary: true },
+      }),
+      prisma.bill.count({ where }),
+    ]);
+
+    return { bills, total, pages: Math.ceil(total / PAGE_SIZE), personalized: false };
+  }
+
+  // Personalized feed
+  if (userId) {
+    const billIds = await getPersonalizedBills(userId, PAGE_SIZE);
+    const bills = await prisma.bill.findMany({
+      where: { id: { in: billIds } },
+      include: { summary: true },
+    });
+
+    // Maintain order from recommendation algorithm
+    const orderedBills = billIds
+      .map((id) => bills.find((b) => b.id === id))
+      .filter((b) => b !== undefined);
+
+    const total = await prisma.bill.count();
+    return { bills: orderedBills, total, pages: 1, personalized: true };
+  }
+
+  // Default: recent bills
   const [bills, total] = await Promise.all([
     prisma.bill.findMany({
-      where,
       take: PAGE_SIZE,
       skip,
       orderBy: { introducedAt: "desc" },
       include: { summary: true },
     }),
-    prisma.bill.count({ where }),
+    prisma.bill.count(),
   ]);
 
-  return { bills, total, pages: Math.ceil(total / PAGE_SIZE) };
+  return { bills, total, pages: Math.ceil(total / PAGE_SIZE), personalized: false };
 }
 
 export default async function BillsPage({
@@ -44,18 +87,39 @@ export default async function BillsPage({
   searchParams: SearchParams;
 }) {
   const page = Number(searchParams.page ?? 1);
-  const { bills, total, pages } = await getBills(
+  const userId = await getUserId().catch(() => undefined);
+  const personalized = searchParams.personalized !== "false";
+
+  const { bills, total, pages, personalized: isPersonalized } = await getBills(
     searchParams.q,
     searchParams.topic,
-    page
+    page,
+    userId,
+    personalized
   );
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Header */}
       <div className="mb-10">
-        <h1 className="font-display text-4xl font-bold text-navy mb-2">Active Bills</h1>
-        <p className="text-gray-500">{total} bills from the 119th Congress</p>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="font-display text-4xl font-bold text-navy">
+            {isPersonalized ? "Bills For You" : "Active Bills"}
+          </h1>
+          {userId && !searchParams.q && !searchParams.topic && (
+            <Link
+              href={`/bills?personalized=${!personalized}`}
+              className="text-sm text-civic-blue hover:underline"
+            >
+              {personalized ? "Show All Bills" : "Show Personalized"}
+            </Link>
+          )}
+        </div>
+        <p className="text-gray-500">
+          {isPersonalized
+            ? "Bills matched to your interests"
+            : `${total} bills from the 119th Congress`}
+        </p>
       </div>
 
       {/* Search + filters */}

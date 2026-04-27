@@ -1,13 +1,29 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { getUserId } from "@/lib/user-tracking";
+import { getPersonalizedBills } from "@/lib/recommendations";
 import IssueCard from "@/components/IssueCard";
 import BillLookup from "@/components/BillLookup";
 import { TOPIC_TAGS } from "@/lib/topics";
 
 export const dynamic = "force-dynamic";
 
-async function getFeaturedBills() {
+async function getFeaturedBills(userId?: string) {
   try {
+    // If user exists, show personalized bills
+    if (userId) {
+      const billIds = await getPersonalizedBills(userId, 6);
+      const bills = await prisma.bill.findMany({
+        where: { id: { in: billIds } },
+        include: { summary: true },
+      });
+      // Maintain order
+      return billIds
+        .map((id) => bills.find((b) => b.id === id))
+        .filter((b) => b !== undefined);
+    }
+
+    // Otherwise show trending
     return await prisma.bill.findMany({
       take: 6,
       orderBy: { viewCount: "desc" },
@@ -19,7 +35,9 @@ async function getFeaturedBills() {
 }
 
 export default async function HomePage() {
-  const bills = await getFeaturedBills();
+  const userId = await getUserId().catch(() => undefined);
+  const bills = await getFeaturedBills(userId);
+  const isPersonalized = !!userId;
 
   return (
     <>
@@ -122,8 +140,14 @@ export default async function HomePage() {
             <>
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h2 className="font-display text-3xl font-bold text-navy">Trending Bills</h2>
-                  <p className="text-gray-400 text-sm mt-1">Most viewed by CivicConnect users</p>
+                  <h2 className="font-display text-3xl font-bold text-navy">
+                    {isPersonalized ? "Bills For You" : "Trending Bills"}
+                  </h2>
+                  <p className="text-gray-400 text-sm mt-1">
+                    {isPersonalized
+                      ? "Personalized based on your interests"
+                      : "Most viewed by CivicConnect users"}
+                  </p>
                 </div>
                 <Link href="/bills" className="text-civic-blue font-medium text-sm hover:underline">
                   View all →
