@@ -97,8 +97,47 @@ model Feedback {
 model PageView {
   id        String   @id @default(cuid())
   path      String
+  userId    String?  // Cookie-based user ID
   createdAt DateTime @default(now())
 
   @@index([path])
   @@index([createdAt])
+  @@index([userId])
+}
+
+model User {
+  id              String   @id @default(cuid())
+  cookieId        String   @unique
+  topicWeights    Json     @default("{}")  // {"Healthcare": 5, "Education": 3}
+  lastSeen        DateTime @default(now())
+  createdAt       DateTime @default(now())
+  
+  sessions        Session[]
+  billViews       BillView[]
+}
+
+model Session {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  startTime       DateTime @default(now())
+  endTime         DateTime?
+  pageCount       Int      @default(0)
+  billsRead       Int      @default(0)
+  
+  @@index([userId])
+}
+
+model BillView {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  billId          String
+  timeSpent       Int      @default(0)  // seconds
+  scrollDepth     Int      @default(0)  // percentage
+  viewedAt        DateTime @default(now())
+  
+  @@index([userId])
+  @@index([billId])
+  @@index([viewedAt])
 }
