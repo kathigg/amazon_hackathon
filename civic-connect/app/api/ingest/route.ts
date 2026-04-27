@@ -26,14 +26,24 @@ export async function POST(req: NextRequest) {
 async function runIngest() {
   const bills = await fetchRecentBills(119, 20);
   let ingested = 0;
+  let skipped = 0;
 
   // Fetch all bill details in parallel to stay within the 60s window
-  await Promise.all(
+  const results = await Promise.allSettled(
     bills.map(async (bill) => {
       const billId = `${bill.type.toLowerCase()}-${bill.number}-${bill.congress}`;
       const topicTags = inferTopics(bill.title);
       const detail = await fetchBillDetail(bill.congress, bill.type, bill.number);
       const sponsor = detail?.sponsor ?? bill.sponsors?.[0]?.fullName ?? "Unknown";
+
+      // Parse introducedDate safely - handle missing or invalid dates
+      let introducedAt = new Date();
+      if (bill.introducedDate) {
+        const parsed = new Date(bill.introducedDate);
+        if (!isNaN(parsed.getTime())) {
+          introducedAt = parsed;
+        }
+      }
 
       await prisma.bill.upsert({
         where: { id: billId },
@@ -50,14 +60,23 @@ async function runIngest() {
           title: bill.title,
           sponsor,
           status: bill.latestAction?.text ?? "Unknown",
-          introducedAt: new Date(bill.introducedDate),
+          introducedAt,
           topicTags,
           fullTextUrl: null,
         },
       });
-      ingested++;
     })
   );
 
-  return NextResponse.json({ ingested });
+  // Count successes and failures
+  for (const result of results) {
+    if (result.status === "fulfilled") {
+      ingested++;
+    } else {
+      skipped++;
+      console.error("Failed to ingest bill:", result.reason);
+    }
+  }
+
+  return NextResponse.json({ ingested, skipped, total: bills.length });
 }
