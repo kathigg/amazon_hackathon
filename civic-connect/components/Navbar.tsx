@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 
@@ -12,7 +13,13 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <span className="text-2xl">🏛️</span>
+            <Image
+              src="/squirrel-logo.png"
+              alt="CivicConnect logo"
+              width={40}
+              height={40}
+              className="rounded-lg"
+            />
             <span className="font-display text-white text-xl font-bold tracking-tight">
               CivicConnect
             </span>
