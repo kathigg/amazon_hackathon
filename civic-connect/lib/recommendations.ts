@@ -140,13 +140,13 @@ async function getRandomBills(
 
   for (let i = 0; i < attempts && bills.length < limit; i++) {
     const skip = Math.floor(Math.random() * totalBills);
-    const bill = await prisma.bill.findMany({
+    const foundBills = await prisma.bill.findMany({
       where: { id: { notIn: [...allExcluded, ...bills.map((b) => b.id)] } },
       skip,
       take: 1,
     });
-    if (bill.length > 0) {
-      bills.push(bill[0]);
+    if (foundBills.length > 0) {
+      bills.push(foundBills[0]);
     }
   }
 
