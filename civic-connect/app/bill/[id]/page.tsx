@@ -7,6 +7,7 @@ import SummaryLoading from "@/components/SummaryLoading";
 import BillProgressFlow from "@/components/BillProgressFlow";
 import PageViewTracker from "@/components/PageViewTracker";
 import BillViewTracker from "@/components/BillViewTracker";
+import RepresentativeStances from "@/components/RepresentativeStances";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle, Clock, AlertCircle } from "lucide-react";
 
@@ -189,6 +190,9 @@ export default async function BillDetailPage({
               <SummaryLoading />
             )}
           </div>
+
+          {/* Representative Stances */}
+          <RepresentativeStances billId={bill.id} />
 
           {/* Stance Cards */}
           {(demStance || repStance) && (
