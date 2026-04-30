@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/user-tracking";
 import { getPersonalizedBills } from "@/lib/recommendations";
-import IssueCard from "@/components/IssueCard";
+import BillFeedCard from "@/components/BillFeedCard";
 import { TOPIC_TAGS } from "@/lib/topics";
 import Link from "next/link";
 
@@ -99,110 +99,117 @@ export default async function BillsPage({
   );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      {/* Header */}
-      <div className="mb-10">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="font-display text-4xl font-bold text-navy">
-            {isPersonalized ? "Bills For You" : "Active Bills"}
-          </h1>
-          {userId && !searchParams.q && !searchParams.topic && (
-            <Link
-              href={`/bills?personalized=${!personalized}`}
-              className="text-sm text-civic-blue hover:underline"
-            >
-              {personalized ? "Show All Bills" : "Show Personalized"}
-            </Link>
-          )}
-        </div>
-        <p className="text-gray-500">
-          {isPersonalized
-            ? "Bills matched to your interests"
-            : `${total} bills from the 119th Congress`}
-        </p>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="font-display text-3xl font-bold text-navy">
+                {isPersonalized ? "Your Feed" : "All Bills"}
+              </h1>
+              <p className="text-gray-500 text-sm mt-1">
+                {isPersonalized
+                  ? "Bills matched to your interests"
+                  : `${total} bills from the 119th Congress`}
+              </p>
+            </div>
+            {userId && !searchParams.q && !searchParams.topic && (
+              <Link
+                href={`/bills?personalized=${!personalized}`}
+                className="text-sm bg-white px-4 py-2 rounded-full border border-gray-200 hover:border-civic-blue hover:text-civic-blue transition-colors"
+              >
+                {personalized ? "Show All" : "For You"}
+              </Link>
+            )}
+          </div>
 
-      {/* Search + filters */}
-      <form method="GET" className="mb-8 flex flex-col sm:flex-row gap-4">
-        <input
-          type="text"
-          name="q"
-          defaultValue={searchParams.q}
-          placeholder="Search bills…"
-          className="flex-1 px-4 py-3 rounded-full border-2 border-gray-200 focus:border-civic-blue focus:outline-none text-sm"
-        />
-        <button type="submit" className="btn-primary text-sm px-6 py-3">
-          Search
-        </button>
-      </form>
-
-      {/* Topic chips */}
-      <div className="flex flex-wrap gap-2 mb-10">
-        <Link
-          href="/bills"
-          className={`tag px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
-            !searchParams.topic
-              ? "bg-navy text-white border-navy"
-              : "border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
-          }`}
-        >
-          All
-        </Link>
-        {TOPIC_TAGS.map((tag) => (
-          <Link
-            key={tag}
-            href={`/bills?topic=${encodeURIComponent(tag)}${searchParams.q ? `&q=${searchParams.q}` : ""}`}
-            className={`tag px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
-              searchParams.topic === tag
-                ? "bg-navy text-white border-navy"
-                : "border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
-            }`}
-          >
-            {tag}
-          </Link>
-        ))}
-      </div>
-
-      {/* Grid */}
-      {bills.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {bills.map((bill) => (
-            <IssueCard
-              key={bill.id}
-              id={bill.id}
-              title={bill.title}
-              plainLanguage={bill.summary?.plainLanguage}
-              status={bill.status}
-              sponsor={bill.sponsor}
-              topicTags={bill.topicTags}
-              introducedAt={bill.introducedAt}
+          {/* Search */}
+          <form method="GET" className="mb-4">
+            <input
+              type="text"
+              name="q"
+              defaultValue={searchParams.q}
+              placeholder="Search bills..."
+              className="w-full px-4 py-3 rounded-full border-2 border-gray-200 focus:border-civic-blue focus:outline-none text-sm bg-white"
             />
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-24 text-gray-400">
-          <p className="text-lg">No bills found. Try a different search or topic.</p>
-        </div>
-      )}
+          </form>
 
-      {/* Pagination */}
-      {pages > 1 && (
-        <div className="flex justify-center gap-2 mt-12">
-          {Array.from({ length: pages }, (_, i) => i + 1).map((p) => (
+          {/* Topic filters */}
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
             <Link
-              key={p}
-              href={`/bills?page=${p}${searchParams.q ? `&q=${searchParams.q}` : ""}${searchParams.topic ? `&topic=${searchParams.topic}` : ""}`}
-              className={`w-10 h-10 flex items-center justify-center rounded-full text-sm font-medium transition-colors ${
-                p === page
+              href="/bills"
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                !searchParams.topic
                   ? "bg-navy text-white"
-                  : "border border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
+                  : "bg-white border border-gray-200 text-gray-600 hover:border-navy"
               }`}
             >
-              {p}
+              All
             </Link>
-          ))}
+            {TOPIC_TAGS.map((tag) => (
+              <Link
+                key={tag}
+                href={`/bills?topic=${encodeURIComponent(tag)}${searchParams.q ? `&q=${searchParams.q}` : ""}`}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                  searchParams.topic === tag
+                    ? "bg-navy text-white"
+                    : "bg-white border border-gray-200 text-gray-600 hover:border-navy"
+                }`}
+              >
+                {tag}
+              </Link>
+            ))}
+          </div>
         </div>
-      )}
+
+        {/* Feed */}
+        {bills.length > 0 ? (
+          <div className="space-y-4">
+            {bills.map((bill) => (
+              <BillFeedCard
+                key={bill.id}
+                id={bill.id}
+                title={bill.title}
+                plainLanguage={bill.summary?.plainLanguage}
+                status={bill.status}
+                sponsor={bill.sponsor}
+                topicTags={bill.topicTags}
+                introducedAt={bill.introducedAt}
+                viewCount={bill.viewCount}
+                isPersonalized={isPersonalized && !searchParams.q && !searchParams.topic}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-24 bg-white rounded-2xl">
+            <p className="text-xl text-gray-400 mb-2">No bills found</p>
+            <p className="text-sm text-gray-400">Try a different search or topic</p>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {pages > 1 && (
+          <div className="flex justify-center gap-2 mt-8">
+            {Array.from({ length: Math.min(pages, 5) }, (_, i) => {
+              const pageNum = i + 1;
+              return (
+                <Link
+                  key={pageNum}
+                  href={`/bills?page=${pageNum}${searchParams.q ? `&q=${searchParams.q}` : ""}${searchParams.topic ? `&topic=${searchParams.topic}` : ""}`}
+                  className={`w-10 h-10 flex items-center justify-center rounded-full text-sm font-medium transition-colors ${
+                    pageNum === page
+                      ? "bg-navy text-white"
+                      : "bg-white border border-gray-200 text-gray-600 hover:border-navy"
+                  }`}
+                >
+                  {pageNum}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

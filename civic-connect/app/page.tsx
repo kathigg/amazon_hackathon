@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/user-tracking";
 import { getPersonalizedBills } from "@/lib/recommendations";
-import IssueCard from "@/components/IssueCard";
+import BillFeedCard from "@/components/BillFeedCard";
 import BillLookup from "@/components/BillLookup";
 import CongressVisualization from "@/components/CongressVisualization";
 import { TOPIC_TAGS } from "@/lib/topics";
@@ -182,9 +182,9 @@ export default async function HomePage() {
                   View all →
                 </Link>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="space-y-4">
                 {bills.map((bill) => (
-                  <IssueCard
+                  <BillFeedCard
                     key={bill.id}
                     id={bill.id}
                     title={bill.title}
@@ -193,6 +193,8 @@ export default async function HomePage() {
                     sponsor={bill.sponsor}
                     topicTags={bill.topicTags}
                     introducedAt={bill.introducedAt}
+                    viewCount={bill.viewCount}
+                    isPersonalized={isPersonalized}
                   />
                 ))}
               </div>
