@@ -1,9 +1,10 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getUserId } from "@/lib/user-tracking";
+import { getCurrentUserId } from "@/lib/user-tracking";
 import { getPersonalizedBills } from "@/lib/recommendations";
 import BillFeedCard from "@/components/BillFeedCard";
+import { BillFeedSort, getBillsBySort } from "@/lib/bill-feed";
 import { TOPIC_TAGS } from "@/lib/topics";
-import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -11,74 +12,65 @@ interface SearchParams {
   q?: string;
   topic?: string;
   page?: string;
+  sort?: string;
   personalized?: string;
 }
 
 const PAGE_SIZE = 12;
 
-async function getBills(
-  q?: string,
-  topic?: string,
+async function getBills({
+  q,
+  topic,
   page = 1,
-  userId?: string,
-  personalized = true
-) {
-  const skip = (page - 1) * PAGE_SIZE;
+  userId,
+  personalized,
+  sort,
+}: {
+  q?: string;
+  topic?: string;
+  page?: number;
+  userId?: string;
+  personalized: boolean;
+  sort: BillFeedSort;
+}) {
+  const where = {
+    ...(q && {
+      title: { contains: q, mode: "insensitive" as const },
+    }),
+    ...(topic && {
+      topicTags: { has: topic },
+    }),
+  };
 
-  // If search or topic filter, use standard query
-  if (q || topic || !personalized) {
-    const where = {
-      ...(q && {
-        title: { contains: q, mode: "insensitive" as const },
-      }),
-      ...(topic && {
-        topicTags: { has: topic },
-      }),
-    };
-
-    const [bills, total] = await Promise.all([
-      prisma.bill.findMany({
-        where,
-        take: PAGE_SIZE,
-        skip,
-        orderBy: { introducedAt: "desc" },
-        include: { summary: true },
-      }),
-      prisma.bill.count({ where }),
-    ]);
-
-    return { bills, total, pages: Math.ceil(total / PAGE_SIZE), personalized: false };
-  }
-
-  // Personalized feed
-  if (userId) {
+  if (personalized && userId && !q && !topic) {
     const billIds = await getPersonalizedBills(userId, PAGE_SIZE);
-    const bills = await prisma.bill.findMany({
+    const personalizedBills = await prisma.bill.findMany({
       where: { id: { in: billIds } },
       include: { summary: true },
     });
 
-    // Maintain order from recommendation algorithm
-    const orderedBills = billIds
-      .map((id) => bills.find((b) => b.id === id))
-      .filter((b) => b !== undefined);
+    const bills = billIds
+      .map((id) => personalizedBills.find((bill) => bill.id === id))
+      .filter((bill) => bill !== undefined);
 
-    const total = await prisma.bill.count();
-    return { bills: orderedBills, total, pages: 1, personalized: true };
+    return { bills, total: bills.length, pages: 1, personalized: true };
   }
 
-  // Default: recent bills
-  const [bills, total] = await Promise.all([
-    prisma.bill.findMany({
-      take: PAGE_SIZE,
-      skip,
-      orderBy: { introducedAt: "desc" },
-      include: { summary: true },
-    }),
-    prisma.bill.count(),
-  ]);
+  const skip = (page - 1) * PAGE_SIZE;
+  const total = await prisma.bill.count({ where });
+  const bills = await getBillsBySort({
+    where,
+    sort,
+    take: PAGE_SIZE,
+    skip,
+  });
 
-  return { bills, total, pages: Math.ceil(total / PAGE_SIZE), personalized: false };
+  return {
+    bills,
+    total,
+    pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+    personalized: false,
+  };
 }
 
 export default async function BillsPage({
@@ -87,129 +79,315 @@ export default async function BillsPage({
   searchParams: SearchParams;
 }) {
   const page = Number(searchParams.page ?? 1);
-  const userId = await getUserId().catch(() => undefined);
-  const personalized = searchParams.personalized !== "false";
+  const userId = await getCurrentUserId().catch(() => undefined);
+  const sort = normalizeSort(searchParams.sort);
+  const personalized = searchParams.personalized === "true";
 
-  const { bills, total, pages, personalized: isPersonalized } = await getBills(
-    searchParams.q,
-    searchParams.topic,
-    page,
-    userId,
-    personalized
-  );
+  const [{ bills, total, pages, personalized: isPersonalized }, railBills] =
+    await Promise.all([
+      getBills({
+        q: searchParams.q,
+        topic: searchParams.topic,
+        page,
+        userId,
+        personalized,
+        sort,
+      }),
+      getBillsBySort({
+        sort: sort === "hot" ? "latest" : "hot",
+        take: 4,
+      }),
+    ]);
+
+  const title = getFeedTitle({
+    q: searchParams.q,
+    topic: searchParams.topic,
+    sort,
+    personalized: isPersonalized,
+  });
+
+  const description = getFeedDescription({
+    q: searchParams.q,
+    topic: searchParams.topic,
+    sort,
+    personalized: isPersonalized,
+    total,
+  });
+
+  const personalizedHref = isPersonalized
+    ? "/bills"
+    : buildBillsHref({ personalized: "true" });
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
+    <div className="min-h-screen">
+      <section className="border-b border-black/10">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
             <div>
-              <h1 className="font-display text-3xl font-bold text-navy">
-                {isPersonalized ? "Your Feed" : "All Bills"}
-              </h1>
-              <p className="text-gray-500 text-sm mt-1">
-                {isPersonalized
-                  ? "Bills matched to your interests"
-                  : `${total} bills from the 119th Congress`}
+              <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-navy/50">
+                {searchParams.topic ? `${searchParams.topic} Desk` : sort === "hot" ? "Hot Desk" : "Bills Desk"}
               </p>
+              <h1 className="mt-2 font-display text-5xl leading-none text-navy sm:text-6xl">
+                {title}
+              </h1>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-navy/70 sm:text-base">
+                {description}
+              </p>
+
+              <form method="GET" className="mt-8 flex flex-col gap-3 sm:flex-row">
+                {searchParams.topic && <input type="hidden" name="topic" value={searchParams.topic} />}
+                {searchParams.sort && <input type="hidden" name="sort" value={searchParams.sort} />}
+                {searchParams.personalized === "true" && !searchParams.q && !searchParams.topic && (
+                  <input type="hidden" name="personalized" value="true" />
+                )}
+                <input
+                  type="text"
+                  name="q"
+                  defaultValue={searchParams.q}
+                  placeholder="Search bill titles"
+                  className="w-full border border-black/15 bg-white px-4 py-3 text-sm text-navy outline-none transition-colors placeholder:text-navy/35 focus:border-navy"
+                />
+                <button
+                  type="submit"
+                  className="border border-navy bg-navy px-6 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-white transition-colors hover:bg-navy/90"
+                >
+                  Search
+                </button>
+              </form>
             </div>
-            {userId && !searchParams.q && !searchParams.topic && (
-              <Link
-                href={`/bills?personalized=${!personalized}`}
-                className="text-sm bg-white px-4 py-2 rounded-full border border-gray-200 hover:border-civic-blue hover:text-civic-blue transition-colors"
-              >
-                {personalized ? "Show All" : "For You"}
-              </Link>
+
+            <aside className="border-t border-black/10 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+              <div className="space-y-6">
+                {userId && !searchParams.q && !searchParams.topic && (
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+                      Reader View
+                    </p>
+                    <Link
+                      href={personalizedHref}
+                      className="mt-3 inline-flex border border-black/15 bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.22em] text-navy transition-colors hover:border-navy"
+                    >
+                      {isPersonalized ? "Back to Latest" : "Switch to For You"}
+                    </Link>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+                    How Hot Works
+                  </p>
+                  <p className="mt-3 text-sm leading-7 text-navy/70">
+                    The `Hot` feed blends two signals: what readers are opening most often and what Congress introduced most recently.
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+                    Desks
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {TOPIC_TAGS.slice(0, 6).map((topic) => (
+                      <Link
+                        key={topic}
+                        href={`/bills?topic=${encodeURIComponent(topic)}`}
+                        className="border border-black/10 bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-navy/70 transition-colors hover:border-navy hover:text-navy"
+                      >
+                        {topic}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div>
+            {bills.length > 0 ? (
+              <div className="space-y-2 border-t border-black/10">
+                {bills.map((bill) => (
+                  <BillFeedCard
+                    key={bill.id}
+                    id={bill.id}
+                    title={bill.title}
+                    plainLanguage={bill.summary?.plainLanguage}
+                    status={bill.status}
+                    sponsor={bill.sponsor}
+                    topicTags={bill.topicTags}
+                    introducedAt={bill.introducedAt}
+                    viewCount={bill.viewCount}
+                    isPersonalized={isPersonalized}
+                    imageThumbnailUrl={bill.imageThumbnailUrl}
+                    imageUrl={bill.imageUrl}
+                    imageTitle={bill.imageTitle}
+                    imageCreator={bill.imageCreator}
+                    imageLicense={bill.imageLicense}
+                    imageLicenseVersion={bill.imageLicenseVersion}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="border border-black/10 bg-white px-8 py-16 text-center">
+                <p className="font-display text-3xl text-navy">No bills found</p>
+                <p className="mt-3 text-sm text-navy/60">Try a different search or return to the latest desk.</p>
+                <Link
+                  href="/bills"
+                  className="mt-6 inline-flex border border-navy px-5 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-navy"
+                >
+                  Browse Latest
+                </Link>
+              </div>
+            )}
+
+            {pages > 1 && (
+              <div className="mt-8 flex flex-wrap gap-2">
+                {Array.from({ length: Math.min(pages, 6) }, (_, index) => {
+                  const pageNumber = index + 1;
+                  return (
+                    <Link
+                      key={pageNumber}
+                      href={buildBillsHref({
+                        page: String(pageNumber),
+                        q: searchParams.q,
+                        topic: searchParams.topic,
+                        sort: searchParams.sort,
+                        personalized: searchParams.personalized,
+                      })}
+                      className={`inline-flex h-10 min-w-10 items-center justify-center border px-4 text-xs font-semibold uppercase tracking-[0.22em] transition-colors ${
+                        pageNumber === page
+                          ? "border-navy bg-navy text-white"
+                          : "border-black/10 bg-white text-navy hover:border-navy"
+                      }`}
+                    >
+                      {pageNumber}
+                    </Link>
+                  );
+                })}
+              </div>
             )}
           </div>
 
-          {/* Search */}
-          <form method="GET" className="mb-4">
-            <input
-              type="text"
-              name="q"
-              defaultValue={searchParams.q}
-              placeholder="Search bills..."
-              className="w-full px-4 py-3 rounded-full border-2 border-gray-200 focus:border-civic-blue focus:outline-none text-sm bg-white"
-            />
-          </form>
-
-          {/* Topic filters */}
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            <Link
-              href="/bills"
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                !searchParams.topic
-                  ? "bg-navy text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:border-navy"
-              }`}
-            >
-              All
-            </Link>
-            {TOPIC_TAGS.map((tag) => (
-              <Link
-                key={tag}
-                href={`/bills?topic=${encodeURIComponent(tag)}${searchParams.q ? `&q=${searchParams.q}` : ""}`}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                  searchParams.topic === tag
-                    ? "bg-navy text-white"
-                    : "bg-white border border-gray-200 text-gray-600 hover:border-navy"
-                }`}
-              >
-                {tag}
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        {/* Feed */}
-        {bills.length > 0 ? (
-          <div className="space-y-4">
-            {bills.map((bill) => (
-              <BillFeedCard
-                key={bill.id}
-                id={bill.id}
-                title={bill.title}
-                plainLanguage={bill.summary?.plainLanguage}
-                status={bill.status}
-                sponsor={bill.sponsor}
-                topicTags={bill.topicTags}
-                introducedAt={bill.introducedAt}
-                viewCount={bill.viewCount}
-                isPersonalized={isPersonalized && !searchParams.q && !searchParams.topic}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-24 bg-white rounded-2xl">
-            <p className="text-xl text-gray-400 mb-2">No bills found</p>
-            <p className="text-sm text-gray-400">Try a different search or topic</p>
-          </div>
-        )}
-
-        {/* Pagination */}
-        {pages > 1 && (
-          <div className="flex justify-center gap-2 mt-8">
-            {Array.from({ length: Math.min(pages, 5) }, (_, i) => {
-              const pageNum = i + 1;
-              return (
+          <aside className="border-t border-black/10 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+              {sort === "hot" ? "Fresh From Congress" : "Most Read Right Now"}
+            </p>
+            <div className="mt-4 space-y-4">
+              {railBills.map((bill, index) => (
                 <Link
-                  key={pageNum}
-                  href={`/bills?page=${pageNum}${searchParams.q ? `&q=${searchParams.q}` : ""}${searchParams.topic ? `&topic=${searchParams.topic}` : ""}`}
-                  className={`w-10 h-10 flex items-center justify-center rounded-full text-sm font-medium transition-colors ${
-                    pageNum === page
-                      ? "bg-navy text-white"
-                      : "bg-white border border-gray-200 text-gray-600 hover:border-navy"
-                  }`}
+                  key={bill.id}
+                  href={`/bill/${bill.id}`}
+                  className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
                 >
-                  {pageNum}
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
+                    {index + 1 < 10 ? `0${index + 1}` : index + 1} · {bill.topicTags[0] ?? "General"}
+                  </p>
+                  <h2 className="mt-2 font-display text-2xl leading-tight text-navy">
+                    {bill.title}
+                  </h2>
+                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-navy/45">
+                    {formatCompactDate(bill.introducedAt)} · {bill.viewCount.toLocaleString()} readers
+                  </p>
                 </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          </aside>
+        </div>
+      </section>
     </div>
   );
+}
+
+function normalizeSort(sort?: string): BillFeedSort {
+  return sort === "hot" ? "hot" : "latest";
+}
+
+function getFeedTitle({
+  q,
+  topic,
+  sort,
+  personalized,
+}: {
+  q?: string;
+  topic?: string;
+  sort: BillFeedSort;
+  personalized: boolean;
+}) {
+  if (q) {
+    return "Search Results";
+  }
+
+  if (personalized) {
+    return "Bills For You";
+  }
+
+  if (topic) {
+    return `${topic} Bills`;
+  }
+
+  return sort === "hot" ? "Hot Bills" : "Latest Bills";
+}
+
+function getFeedDescription({
+  q,
+  topic,
+  sort,
+  personalized,
+  total,
+}: {
+  q?: string;
+  topic?: string;
+  sort: BillFeedSort;
+  personalized: boolean;
+  total: number;
+}) {
+  if (q) {
+    return `Matching bill headlines across the 119th Congress. ${total} result${total === 1 ? "" : "s"} found.`;
+  }
+
+  if (personalized) {
+    return "A reader-specific briefing assembled from the subjects you spend the most time with.";
+  }
+
+  if (topic) {
+    return `${total} bill${total === 1 ? "" : "s"} in the ${topic} desk, ordered for current relevance and readability.`;
+  }
+
+  if (sort === "hot") {
+    return "The most talked-about bills right now, weighted by readership and recency.";
+  }
+
+  return `${total} bill${total === 1 ? "" : "s"} from the 119th Congress, led by the newest arrivals from Capitol Hill.`;
+}
+
+function buildBillsHref(params: SearchParams): string {
+  const nextParams = new URLSearchParams();
+
+  if (params.page && params.page !== "1") {
+    nextParams.set("page", params.page);
+  }
+  if (params.q) {
+    nextParams.set("q", params.q);
+  }
+  if (params.topic) {
+    nextParams.set("topic", params.topic);
+  }
+  if (params.sort && params.sort !== "latest") {
+    nextParams.set("sort", params.sort);
+  }
+  if (params.personalized === "true" && !params.q && !params.topic) {
+    nextParams.set("personalized", "true");
+  }
+
+  const query = nextParams.toString();
+  return query ? `/bills?${query}` : "/bills";
+}
+
+function formatCompactDate(date: Date) {
+  return new Date(date).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }

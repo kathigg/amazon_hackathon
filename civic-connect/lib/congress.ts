@@ -11,7 +11,7 @@ export interface CongressBill {
   type: string;
   title: string;
   introducedDate: string;
-  latestAction: { text: string; actionDate: string };
+  latestAction: { text: string; actionDate: string; actionTime?: string };
   sponsors?: Array<{ fullName: string }>;
   url: string;
 }
@@ -22,7 +22,7 @@ export async function fetchRecentBills(
   offset = 0
 ): Promise<CongressBill[]> {
   const url = `${BASE}/bill/${congress}?limit=${limit}&offset=${offset}&api_key=${getKey()}&format=json`;
-  const res = await fetch(url, { next: { revalidate: 3600 } });
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`Congress API error: ${res.status}`);
   const data = await res.json();
   return data.bills ?? [];

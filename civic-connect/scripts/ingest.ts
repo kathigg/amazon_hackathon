@@ -6,45 +6,24 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 
 import { prisma } from "../lib/prisma";
-import { fetchRecentBills, fetchBillText, fetchBillDetail, fetchCosponsors } from "../lib/congress";
+import { fetchBillText, fetchCosponsors } from "../lib/congress";
+import { fetchBillsForMetadataIngest, upsertBillMetadataFromCongress } from "../lib/bill-ingestion";
 import { fetchBillVotes } from "../lib/votes";
 import { summarizeBill } from "../lib/summarize";
 import { preprocessBillText } from "../lib/bill-text";
-import { inferTopics } from "../lib/topics";
+
+const FULL_INGEST_LIMIT = 20;
 
 async function main() {
   console.log("Starting bill ingestion...");
-  const bills = await fetchRecentBills(119, 20);
+  const bills = await fetchBillsForMetadataIngest(119, FULL_INGEST_LIMIT);
   console.log(`Fetched ${bills.length} bills from Congress.gov`);
 
   for (const bill of bills) {
-    const billId = `${bill.type.toLowerCase()}-${bill.number}-${bill.congress}`;
-    const topicTags = inferTopics(bill.title);
-
-    // Fetch detail for accurate sponsor name (list endpoint doesn't include it)
-    const detail = await fetchBillDetail(bill.congress, bill.type, bill.number);
-    const sponsor = detail?.sponsor ?? bill.sponsors?.[0]?.fullName ?? "Unknown";
-
-    await prisma.bill.upsert({
-      where: { id: billId },
-      update: {
-        sponsor,
-        status: bill.latestAction?.text ?? "Unknown",
-        updatedAt: new Date(),
-      },
-      create: {
-        id: billId,
-        congress: bill.congress,
-        number: bill.number,
-        type: bill.type,
-        title: bill.title,
-        sponsor,
-        status: bill.latestAction?.text ?? "Unknown",
-        introducedAt: bill.introducedDate ? new Date(bill.introducedDate) : new Date(),
-        topicTags,
-        fullTextUrl: null,
-      },
-    });
+    const { billId, breakingTriggered } = await upsertBillMetadataFromCongress(bill);
+    if (breakingTriggered) {
+      console.log(`  ! Breaking: ${billId}`);
+    }
 
     // Summarize if no summary exists yet
     const existing = await prisma.summary.findUnique({ where: { billId } });

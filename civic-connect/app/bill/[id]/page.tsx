@@ -8,8 +8,10 @@ import BillProgressFlow from "@/components/BillProgressFlow";
 import PageViewTracker from "@/components/PageViewTracker";
 import BillViewTracker from "@/components/BillViewTracker";
 import RepresentativeStances from "@/components/RepresentativeStances";
+import BillIssueVisual from "@/components/BillIssueVisual";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { formatOpenverseLicense } from "@/lib/openverse";
 
 export const dynamic = "force-dynamic";
 
@@ -92,39 +94,75 @@ export default async function BillDetailPage({
         <div className="lg:col-span-2 flex flex-col gap-8">
           {/* Issue Card — full detail */}
           <div className="card p-8">
-            {/* Tags */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              {bill.topicTags.map((tag: string) => (
-                <Link
-                  key={tag}
-                  href={`/bills?topic=${encodeURIComponent(tag)}`}
-                  className="tag bg-blue-50 text-civic-blue hover:bg-civic-blue hover:text-white transition-colors"
-                >
-                  {tag}
-                </Link>
-              ))}
-            </div>
-
-            {/* Bill type badge */}
-            <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
-              {bill.type} {bill.number} · {bill.congress}th Congress
-            </span>
-
-            <h1 className="font-display text-2xl md:text-3xl font-bold text-navy mt-2 mb-6 leading-tight">
-              {bill.title}
-            </h1>
-
-            {/* Status */}
-            <div className="flex items-center gap-2 mb-6 p-3 bg-gray-50 rounded-xl">
-              <StatusIcon status={bill.status} />
+            <div className="grid gap-6 md:grid-cols-[1fr_270px] md:items-start">
               <div>
-                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Current Status</p>
-                <p className="text-sm text-navy font-medium">{bill.status}</p>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {bill.topicTags.map((tag: string) => (
+                    <Link
+                      key={tag}
+                      href={`/bills?topic=${encodeURIComponent(tag)}`}
+                      className="tag bg-blue-50 text-civic-blue hover:bg-civic-blue hover:text-white transition-colors"
+                    >
+                      {tag}
+                    </Link>
+                  ))}
+                </div>
+
+                <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
+                  {bill.type} {bill.number} · {bill.congress}th Congress
+                </span>
+
+                <h1 className="font-display text-2xl md:text-3xl font-bold text-navy mt-2 mb-6 leading-tight">
+                  {bill.title}
+                </h1>
+
+                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl">
+                  <StatusIcon status={bill.status} />
+                  <div>
+                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Current Status</p>
+                    <p className="text-sm text-navy font-medium">{bill.status}</p>
+                  </div>
+                </div>
               </div>
+
+              <BillIssueVisual
+                billId={bill.id}
+                title={bill.title}
+                imageThumbnailUrl={bill.imageThumbnailUrl}
+                imageUrl={bill.imageUrl}
+                imageTitle={bill.imageTitle}
+                imageCreator={bill.imageCreator}
+                imageLicense={bill.imageLicense}
+                imageLicenseVersion={bill.imageLicenseVersion}
+                className="h-52 w-full md:h-64"
+                preferFull
+              />
             </div>
 
-            {/* Sponsor + date */}
-            <div className="grid grid-cols-2 gap-4 mb-8 text-sm">
+            {(bill.imagePageUrl || bill.imageCreator || bill.imageLicense) && (
+              <div className="mt-4 text-xs text-gray-500">
+                <span className="font-medium text-gray-600">Image:</span>{" "}
+                {bill.imagePageUrl ? (
+                  <a
+                    href={bill.imagePageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-civic-blue hover:underline"
+                  >
+                    {bill.imageTitle || "View source"}
+                  </a>
+                ) : (
+                  <span>{bill.imageTitle || "Openverse result"}</span>
+                )}
+                {bill.imageCreator && <span>{` · by ${bill.imageCreator}`}</span>}
+                {formatOpenverseLicense(bill.imageLicense, bill.imageLicenseVersion) && (
+                  <span>{` · ${formatOpenverseLicense(bill.imageLicense, bill.imageLicenseVersion)}`}</span>
+                )}
+                {bill.imageSource && <span>{` · ${bill.imageSource}`}</span>}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8 text-sm">
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Sponsor</p>
                 <p className="font-medium text-navy">{bill.sponsor}</p>

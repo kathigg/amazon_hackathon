@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserId, trackBillView, updateTopicWeights } from "@/lib/user-tracking";
+import {
+  getOrCreateUserId,
+  trackBillView,
+  updateTopicWeights,
+} from "@/lib/user-tracking";
 
 export async function POST(req: NextRequest) {
   try {
     const { billId, topics, timeSpent, scrollDepth } = await req.json();
 
-    const userId = await getUserId();
+    const userId = await getOrCreateUserId();
 
-    // Track the bill view
     await trackBillView(userId, billId, timeSpent, scrollDepth);
 
-    // Update user's topic interests
     if (topics && topics.length > 0) {
       await updateTopicWeights(userId, topics);
     }

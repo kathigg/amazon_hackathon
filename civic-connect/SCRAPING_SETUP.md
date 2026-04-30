@@ -27,7 +27,7 @@ This document explains how the representative stance scraping system works and h
 
 **Request Model Access:**
 1. Go to AWS Bedrock → Model access
-2. Request access to: `Claude 3 Sonnet`
+2. Open Model catalog and enable: `Claude Haiku 4.5`
 3. Wait for approval (usually instant)
 
 ### 2. Add Environment Variables to Vercel
@@ -36,7 +36,7 @@ This document explains how the representative stance scraping system works and h
 AWS_ACCESS_KEY_ID=AKIA...
 AWS_SECRET_ACCESS_KEY=wJal...
 AWS_REGION=us-east-1
-AWS_BEDROCK_MODEL=anthropic.claude-3-sonnet-20240229-v1:0
+AWS_BEDROCK_MODEL=us.anthropic.claude-haiku-4-5-20251001-v1:0
 CRON_SECRET=any_random_string
 ```
 

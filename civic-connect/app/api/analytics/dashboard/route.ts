@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { mergeTopicWeights } from "@/lib/account-interests";
 
 export async function GET() {
   try {
@@ -63,12 +64,15 @@ export async function GET() {
 
     // Most popular topics
     const allUsers = await prisma.user.findMany({
-      select: { topicWeights: true },
+      select: { topicWeights: true, interestSelections: true },
     });
 
     const topicTotals: Record<string, number> = {};
     for (const user of allUsers) {
-      const weights = user.topicWeights as Record<string, number>;
+      const weights = mergeTopicWeights(
+        user.topicWeights,
+        user.interestSelections
+      );
       for (const [topic, weight] of Object.entries(weights)) {
         topicTotals[topic] = (topicTotals[topic] || 0) + weight;
       }

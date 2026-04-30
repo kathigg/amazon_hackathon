@@ -18,7 +18,19 @@ model Bill {
   introducedAt DateTime
   topicTags    String[]
   fullTextUrl  String?
+  imageUrl     String?
+  imageThumbnailUrl String?
+  imageTitle   String?
+  imagePageUrl String?
+  imageCreator String?
+  imageCreatorUrl String?
+  imageLicense String?
+  imageLicenseVersion String?
+  imageSource  String?
+  imageSearchQuery String?
+  imageFetchedAt DateTime?
   viewCount    Int      @default(0)
+  breakingAt   DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -150,7 +162,9 @@ model PageView {
 
 model User {
   id              String   @id @default(cuid())
+  email           String?  @unique
   cookieId        String   @unique
+  interestSelections String[] @default([])
   topicWeights    Json     @default("{}")  // {"Healthcare": 5, "Education": 3}
   lastSeen        DateTime @default(now())
   createdAt       DateTime @default(now())

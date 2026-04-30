@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { mergeTopicWeights } from "./account-interests";
 
 interface UserPreferences {
   topicWeights: Record<string, number>;
@@ -12,14 +13,17 @@ export async function getPersonalizedBills(
   // Get user preferences
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { topicWeights: true },
+    select: { topicWeights: true, interestSelections: true },
   });
 
   if (!user) {
     return getRecentBills(limit);
   }
 
-  const topicWeights = (user.topicWeights as Record<string, number>) || {};
+  const topicWeights = mergeTopicWeights(
+    user.topicWeights,
+    user.interestSelections
+  );
 
   // Get recently viewed bills to avoid showing them again
   const recentViews = await prisma.billView.findMany({
@@ -135,7 +139,7 @@ async function getRandomBills(
   }
 
   // Get random bills using random skip
-  const bills: Array<{ id: string; [key: string]: any }> = [];
+  const bills: Array<{ id: string } & Record<string, unknown>> = [];
   const attempts = Math.min(limit * 3, totalBills);
 
   for (let i = 0; i < attempts && bills.length < limit; i++) {

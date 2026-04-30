@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { BillFeedSort, getBillsBySort } from "@/lib/bill-feed";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -7,6 +8,7 @@ export async function GET(req: NextRequest) {
   const topic = searchParams.get("topic") ?? undefined;
   const page = Number(searchParams.get("page") ?? 1);
   const limit = Number(searchParams.get("limit") ?? 12);
+  const sort = normalizeSort(searchParams.get("sort") ?? undefined);
   const skip = (page - 1) * limit;
 
   const where = {
@@ -15,15 +17,18 @@ export async function GET(req: NextRequest) {
   };
 
   const [bills, total] = await Promise.all([
-    prisma.bill.findMany({
+    getBillsBySort({
       where,
+      sort,
       take: limit,
       skip,
-      orderBy: { introducedAt: "desc" },
-      include: { summary: true },
     }),
     prisma.bill.count({ where }),
   ]);
 
   return NextResponse.json({ bills, total, page, pages: Math.ceil(total / limit) });
+}
+
+function normalizeSort(sort?: string): BillFeedSort {
+  return sort === "hot" ? "hot" : "latest";
 }

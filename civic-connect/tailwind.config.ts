@@ -52,7 +52,7 @@ const config: Config = {
           light: "#132040",
           muted: "#1E3A5F",
         },
-        cream: "#F8F7F4",
+        cream: "#F6F1E7",
         civic: {
           red: "#C0392B",
           blue: "#2E4A8F",
@@ -60,8 +60,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
-        display: ["Playfair Display", "serif"],
+        sans: ["Libre Franklin", "sans-serif"],
+        display: ["Cormorant Garamond", "serif"],
       },
       borderRadius: {
         card: "16px",

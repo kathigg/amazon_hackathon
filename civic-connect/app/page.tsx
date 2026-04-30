@@ -1,35 +1,31 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getUserId } from "@/lib/user-tracking";
+import { getCurrentUser } from "@/lib/user-tracking";
 import { getPersonalizedBills } from "@/lib/recommendations";
+import { getBillsBySort } from "@/lib/bill-feed";
 import BillFeedCard from "@/components/BillFeedCard";
 import BillLookup from "@/components/BillLookup";
+import BillIssueVisual from "@/components/BillIssueVisual";
 import CongressVisualization from "@/components/CongressVisualization";
 import { TOPIC_TAGS } from "@/lib/topics";
 
 export const dynamic = "force-dynamic";
 
-async function getFeaturedBills(userId?: string) {
-  try {
-    // If user exists, show personalized bills
-    if (userId) {
-      const billIds = await getPersonalizedBills(userId, 6);
-      const bills = await prisma.bill.findMany({
-        where: { id: { in: billIds } },
-        include: { summary: true },
-      });
-      // Maintain order
-      return billIds
-        .map((id) => bills.find((b) => b.id === id))
-        .filter((b) => b !== undefined);
-    }
+async function getPersonalizedFrontPageBills(userId?: string) {
+  if (!userId) {
+    return [];
+  }
 
-    // Otherwise show trending
-    return await prisma.bill.findMany({
-      take: 6,
-      orderBy: { viewCount: "desc" },
+  try {
+    const billIds = await getPersonalizedBills(userId, 3);
+    const bills = await prisma.bill.findMany({
+      where: { id: { in: billIds } },
       include: { summary: true },
     });
+
+    return billIds
+      .map((id) => bills.find((bill) => bill.id === id))
+      .filter((bill) => bill !== undefined);
   } catch {
     return [];
   }
@@ -63,166 +59,308 @@ function classifyBillStage(status: string): "introduced" | "committee" | "house_
 }
 
 export default async function HomePage() {
-  const userId = await getUserId().catch(() => undefined);
-  const bills = await getFeaturedBills(userId);
-  const visualizationBills = await getBillsForVisualization();
-  const isPersonalized = !!userId;
+  const currentUser = await getCurrentUser().catch(() => null);
+  const [hotBills, latestBills, personalizedBills, visualizationBills] = await Promise.all([
+    getBillsBySort({ sort: "hot", take: 6 }),
+    getBillsBySort({ sort: "latest", take: 5 }),
+    getPersonalizedFrontPageBills(currentUser?.id),
+    getBillsForVisualization(),
+  ]);
+
+  const leadBill = hotBills[0];
+  const secondaryBills = hotBills.slice(1, 3);
+  const feedBills = hotBills.slice(0, 4);
 
   return (
-    <>
-      {/* Hero */}
-      <section className="bg-navy text-white py-24 px-4 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5 bg-[url('/stars.svg')] bg-repeat" />
-        <div className="max-w-4xl mx-auto text-center relative z-10">
-          <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-2 text-sm mb-6">
-            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-            Live bill data from the 119th Congress
-          </div>
-          <h1 className="font-display text-5xl md:text-7xl font-bold leading-tight mb-6">
-            Know Your Laws.
-            <br />
-            <span className="text-civic-gold">Act on Them.</span>
-          </h1>
-          <p className="text-white/70 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
-            CivicConnect translates complex U.S. federal legislation into plain English — so you can understand what Congress is doing and take action.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/bills" className="btn-primary text-base px-8 py-4">
-              Explore Active Bills
-            </Link>
-            <Link href="/about" className="btn-outline border-white text-white hover:bg-white hover:text-navy text-base px-8 py-4">
-              How It Works
-            </Link>
-          </div>
+    <div className="min-h-screen">
+      <section className="border-b border-black/10">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/50 sm:px-6 lg:px-8">
+          <span>Front Page</span>
+          <span>Updated throughout the day</span>
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="py-20 px-4 bg-cream">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="font-display text-3xl md:text-4xl font-bold text-navy text-center mb-4">
-            Three ways to engage
-          </h2>
-          <p className="text-gray-500 text-center mb-12 max-w-xl mx-auto">
-            From understanding a bill to contacting your representative — we cover the full civic journey.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                title: "Issue Cards",
-                desc: "AI-generated plain-language summaries of active federal bills. No legalese.",
-                color: "bg-blue-50 border-blue-200",
-              },
-              {
-                title: "Stance Cards",
-                desc: "See how Democrats and Republicans have voted and positioned themselves on each bill.",
-                color: "bg-red-50 border-red-200",
-              },
-              {
-                title: "Action Cards",
-                desc: "Connect with advocacy organizations and contact your representatives directly.",
-                color: "bg-amber-50 border-amber-200",
-              },
-            ].map((item) => (
-              <div key={item.title} className={`rounded-card border-2 p-8 ${item.color}`}>
-                <h3 className="font-bold text-navy text-xl mb-2">{item.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {leadBill ? (
+        <>
+          <section className="border-b border-black/10">
+            <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+              <div className="grid gap-10 xl:grid-cols-[minmax(0,1.5fr)_320px]">
+                <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
+                  <article>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-civic-red">
+                      Hot Bill
+                    </p>
+                    <Link href={`/bill/${leadBill.id}`} className="group block">
+                      <h1 className="mt-4 font-display text-5xl leading-[0.95] text-navy transition-colors group-hover:text-civic-blue sm:text-6xl">
+                        {leadBill.title}
+                      </h1>
+                      <p className="mt-5 max-w-3xl text-base leading-8 text-navy/72">
+                        {leadBill.summary?.plainLanguage ??
+                          "Read the latest plain-language analysis, party positions, and action steps for this federal bill."}
+                      </p>
+                      <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-navy/45">
+                        <span>{leadBill.id.toUpperCase()}</span>
+                        <span>{formatFullDate(leadBill.introducedAt)}</span>
+                        <span>{leadBill.viewCount.toLocaleString()} readers</span>
+                      </div>
+                      <div className="mt-8 overflow-hidden border border-black/10 bg-white">
+                        <BillIssueVisual
+                          billId={leadBill.id}
+                          title={leadBill.title}
+                          imageThumbnailUrl={leadBill.imageThumbnailUrl}
+                          imageUrl={leadBill.imageUrl}
+                          imageTitle={leadBill.imageTitle}
+                          imageCreator={leadBill.imageCreator}
+                          imageLicense={leadBill.imageLicense}
+                          imageLicenseVersion={leadBill.imageLicenseVersion}
+                          className="h-72 w-full"
+                          preferFull
+                        />
+                      </div>
+                    </Link>
+                  </article>
 
-      {/* Bill lookup */}
-      <section className="py-12 px-4 bg-navy/5 border-y border-navy/10">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="font-display text-2xl font-bold text-navy mb-2">Look up any bill</h2>
-          <p className="text-gray-500 text-sm mb-6">
-            Enter a bill ID (e.g. <code className="bg-gray-100 px-1 rounded">hr-1-119</code>) or search by keyword below. If we don't have it yet, we'll summarize it on the spot.
-          </p>
-          <BillLookup />
-        </div>
-      </section>
-
-      {/* Topic filters */}
-      <section className="py-16 px-4">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="font-display text-3xl font-bold text-navy mb-8">Browse by Topic</h2>
-          <div className="flex flex-wrap gap-3">
-            {TOPIC_TAGS.map((tag) => (
-              <Link
-                key={tag}
-                href={`/bills?topic=${encodeURIComponent(tag)}`}
-                className="px-5 py-2 rounded-full border-2 border-navy/20 text-navy text-sm font-medium hover:bg-navy hover:text-white transition-colors"
-              >
-                {tag}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Featured bills */}
-      <section className="py-8 px-4">
-        <div className="max-w-7xl mx-auto">
-          {bills.length > 0 ? (
-            <>
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h2 className="font-display text-3xl font-bold text-navy">
-                    {isPersonalized ? "Bills For You" : "Trending Bills"}
-                  </h2>
-                  <p className="text-gray-400 text-sm mt-1">
-                    {isPersonalized
-                      ? "Personalized based on your interests"
-                      : "Most viewed by CivicConnect users"}
-                  </p>
+                  <aside className="border-t border-black/10 pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+                      More in Hot
+                    </p>
+                    <div className="mt-4 space-y-6">
+                      {secondaryBills.map((bill) => (
+                        <Link
+                          key={bill.id}
+                          href={`/bill/${bill.id}`}
+                          className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
+                        >
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
+                            {bill.topicTags[0] ?? "General"} · {bill.viewCount.toLocaleString()} readers
+                          </p>
+                          <h2 className="mt-2 font-display text-3xl leading-tight text-navy">
+                            {bill.title}
+                          </h2>
+                          <p className="mt-2 text-sm leading-7 text-navy/65 line-clamp-3">
+                            {bill.summary?.plainLanguage ?? "Open the bill page for the summary, context, and next steps."}
+                          </p>
+                        </Link>
+                      ))}
+                    </div>
+                  </aside>
                 </div>
-                <Link href="/bills" className="text-civic-blue font-medium text-sm hover:underline">
-                  View all →
-                </Link>
-              </div>
-              <div className="space-y-4">
-                {bills.map((bill) => (
-                  <BillFeedCard
-                    key={bill.id}
-                    id={bill.id}
-                    title={bill.title}
-                    plainLanguage={bill.summary?.plainLanguage}
-                    status={bill.status}
-                    sponsor={bill.sponsor}
-                    topicTags={bill.topicTags}
-                    introducedAt={bill.introducedAt}
-                    viewCount={bill.viewCount}
-                    isPersonalized={isPersonalized}
-                  />
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="text-center py-16">
-              <h2 className="font-display text-2xl font-bold text-navy mb-2">No bills loaded yet</h2>
-              <p className="text-gray-500 mb-6">Use the lookup above to find any bill, or run the ingestion script to load bills in bulk.</p>
-              <Link href="/bills" className="btn-primary inline-block">Browse Bills</Link>
-            </div>
-          )}
-        </div>
-      </section>
 
-      {/* Congress Visualization */}
-      <section className="py-16 px-4 pb-24 bg-gradient-to-b from-white to-blue-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-8">
-            <h2 className="font-display text-3xl font-bold text-navy mb-2">
-              Bills in Motion
-            </h2>
-            <p className="text-gray-500">
-              Real-time visualization of where bills are in the legislative process
+                <aside className="border-t border-black/10 pt-6 xl:border-l xl:border-t-0 xl:pl-8 xl:pt-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+                    Latest From Congress
+                  </p>
+                  <div className="mt-4 space-y-4">
+                    {latestBills.map((bill, index) => (
+                      <Link
+                        key={bill.id}
+                        href={`/bill/${bill.id}`}
+                        className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
+                      >
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
+                          {index + 1 < 10 ? `0${index + 1}` : index + 1} · {formatCompactDate(bill.introducedAt)}
+                        </p>
+                        <h2 className="mt-2 font-display text-2xl leading-tight text-navy">
+                          {bill.title}
+                        </h2>
+                      </Link>
+                    ))}
+                  </div>
+                </aside>
+              </div>
+            </div>
+          </section>
+
+          <section className="border-b border-black/10">
+            <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+              <div className="grid gap-8 lg:grid-cols-3">
+                <div className="border border-black/10 bg-white p-6">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+                    Bill Lookup
+                  </p>
+                  <h2 className="mt-3 font-display text-3xl text-navy">
+                    Search a bill by name or number
+                  </h2>
+                  <p className="mt-3 text-sm leading-7 text-navy/68">
+                    Drop in a bill ID like <span className="font-semibold">hr-1-119</span> or a keyword and CivicConnect will take you straight to the filing.
+                  </p>
+                  <div className="mt-6">
+                    <BillLookup />
+                  </div>
+                </div>
+
+                <div className="border border-black/10 bg-white p-6">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+                    {personalizedBills.length > 0
+                      ? "For You"
+                      : currentUser?.email
+                        ? "Tune Your Desk"
+                        : "Quick Account"}
+                  </p>
+                  {personalizedBills.length > 0 ? (
+                    <>
+                      <h2 className="mt-3 font-display text-3xl text-navy">
+                        A shortlist tuned to your reading
+                      </h2>
+                      <div className="mt-5 space-y-4">
+                        {personalizedBills.map((bill) => (
+                          <Link
+                            key={bill.id}
+                            href={`/bill/${bill.id}`}
+                            className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
+                          >
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
+                              {bill.topicTags[0] ?? "General"}
+                            </p>
+                            <h3 className="mt-2 font-display text-2xl leading-tight text-navy">
+                              {bill.title}
+                            </h3>
+                          </Link>
+                        ))}
+                      </div>
+                    </>
+                  ) : currentUser?.email ? (
+                    <>
+                      <h2 className="mt-3 font-display text-3xl text-navy">
+                        Fine-tune what lands in For You
+                      </h2>
+                      <p className="mt-3 text-sm leading-7 text-navy/68">
+                        Update your saved issues to give the recommendation feed a
+                        cleaner starting point before your reading history takes
+                        over.
+                      </p>
+                      <Link
+                        href="/account"
+                        className="mt-6 inline-flex border border-navy px-5 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-navy"
+                      >
+                        Manage Account
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <h2 className="mt-3 font-display text-3xl text-navy">
+                        Create a quick account
+                      </h2>
+                      <p className="mt-3 text-sm leading-7 text-navy/68">
+                        Add your email, pick at least one policy area, and
+                        CivicConnect will keep a saved desk ready for you on
+                        future visits.
+                      </p>
+                      <Link
+                        href="/account"
+                        className="mt-6 inline-flex border border-navy px-5 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-navy"
+                      >
+                        Start Your Desk
+                      </Link>
+                    </>
+                  )}
+                </div>
+
+                <div className="border border-black/10 bg-white p-6">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+                    Browse the Desks
+                  </p>
+                  <h2 className="mt-3 font-display text-3xl text-navy">
+                    Track a policy beat
+                  </h2>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {TOPIC_TAGS.map((topic) => (
+                      <Link
+                        key={topic}
+                        href={`/bills?topic=${encodeURIComponent(topic)}`}
+                        className="border border-black/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-navy/70 transition-colors hover:border-navy hover:text-navy"
+                      >
+                        {topic}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+            <div className="flex items-end justify-between gap-4 border-b border-black/10 pb-5">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+                  Most Read
+                </p>
+                <h2 className="mt-2 font-display text-4xl text-navy">Bills driving attention now</h2>
+              </div>
+              <Link
+                href="/bills?sort=hot"
+                className="shrink-0 border border-black/10 bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-navy transition-colors hover:border-navy"
+              >
+                View All Hot Bills
+              </Link>
+            </div>
+
+            <div className="mt-2 border-t border-black/10">
+              {feedBills.map((bill) => (
+                <BillFeedCard
+                  key={bill.id}
+                  id={bill.id}
+                  title={bill.title}
+                  plainLanguage={bill.summary?.plainLanguage}
+                  status={bill.status}
+                  sponsor={bill.sponsor}
+                  topicTags={bill.topicTags}
+                  introducedAt={bill.introducedAt}
+                  viewCount={bill.viewCount}
+                  imageThumbnailUrl={bill.imageThumbnailUrl}
+                  imageUrl={bill.imageUrl}
+                  imageTitle={bill.imageTitle}
+                  imageCreator={bill.imageCreator}
+                  imageLicense={bill.imageLicense}
+                  imageLicenseVersion={bill.imageLicenseVersion}
+                />
+              ))}
+            </div>
+          </section>
+        </>
+      ) : (
+        <section className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6">
+          <h1 className="font-display text-5xl text-navy">No bills loaded yet</h1>
+          <p className="mt-4 text-base text-navy/70">
+            Use the bill lookup to fetch one on demand, or run the ingestion script to build the front page.
+          </p>
+          <div className="mx-auto mt-8 max-w-xl">
+            <BillLookup />
+          </div>
+        </section>
+      )}
+
+      <section className="border-t border-black/10 bg-white/65">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="mb-8 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+                Process Tracker
+              </p>
+              <h2 className="mt-2 font-display text-4xl text-navy">Bills in Motion</h2>
+            </div>
+            <p className="max-w-xl text-sm leading-7 text-navy/65">
+              A live view of how recently loaded bills are moving through the legislative process.
             </p>
           </div>
           <CongressVisualization bills={visualizationBills} />
         </div>
       </section>
-    </>
+    </div>
   );
+}
+
+function formatCompactDate(date: Date) {
+  return new Date(date).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function formatFullDate(date: Date) {
+  return new Date(date).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }

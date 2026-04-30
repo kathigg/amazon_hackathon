@@ -5,13 +5,11 @@
 
 import {
   BedrockRuntimeClient,
-  InvokeModelCommand,
+  ConverseCommand,
 } from "@aws-sdk/client-bedrock-runtime";
 
 interface BedrockConfig {
   region: string;
-  accessKeyId: string;
-  secretAccessKey: string;
   model: string;
 }
 
@@ -65,49 +63,46 @@ If there's no relevant information, return neutral with low confidence.`;
 async function callBedrock(config: BedrockConfig, prompt: string): Promise<string> {
   const client = new BedrockRuntimeClient({
     region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
   });
 
-  const payload = {
-    anthropic_version: "bedrock-2023-05-31",
-    max_tokens: 1024,
+  const command = new ConverseCommand({
+    modelId: config.model,
     messages: [
       {
         role: "user",
-        content: prompt,
+        content: [{ text: prompt }],
       },
     ],
-  };
-
-  const command = new InvokeModelCommand({
-    modelId: config.model,
-    contentType: "application/json",
-    accept: "application/json",
-    body: JSON.stringify(payload),
+    inferenceConfig: {
+      maxTokens: 1024,
+    },
   });
 
   const response = await client.send(command);
-  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-  
-  return responseBody.content[0].text;
+  const textBlock = response.output?.message?.content?.find(
+    (item) => "text" in item && typeof item.text === "string"
+  );
+
+  if (!textBlock || !("text" in textBlock)) {
+    throw new Error("Bedrock returned no text content");
+  }
+
+  return textBlock.text;
 }
 
 function getBedrockConfig(): BedrockConfig {
   return {
     region: process.env.AWS_REGION || "us-east-1",
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
-    model: process.env.AWS_BEDROCK_MODEL || "us.anthropic.claude-haiku-4-5-20250110-v1:0",
+    model: process.env.AWS_BEDROCK_MODEL || "us.anthropic.claude-haiku-4-5-20251001-v1:0",
   };
 }
 
 export function isBedrockConfigured(): boolean {
   return !!(
-    process.env.AWS_ACCESS_KEY_ID &&
-    process.env.AWS_SECRET_ACCESS_KEY &&
-    process.env.AWS_REGION
+    process.env.AWS_REGION &&
+    (
+      process.env.AWS_BEARER_TOKEN_BEDROCK ||
+      (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY)
+    )
   );
 }

@@ -8,6 +8,7 @@ import { summarizeBill } from "./summarize";
 import { preprocessBillText } from "./bill-text";
 import { inferTopics } from "./topics";
 import { fetchBillVotes } from "./votes";
+import { fetchBestOpenverseBillImage, getNoImageAttemptMetadata } from "./openverse";
 
 const BASE = "https://api.congress.gov/v3";
 function getCongressApiKey() {
@@ -38,6 +39,10 @@ export async function getBillOrFetch(billId: string) {
     // Fetch stances on-demand if missing (bill was ingested before stance data was available)
     if (existing.stances.length === 0) {
       await fetchAndStoreStances(billId, existing.congress, existing.type, existing.number);
+    }
+
+    if (!existing.imageFetchedAt) {
+      await fetchAndStoreOpenverseImage(existing.id, existing.title, existing.topicTags);
     }
 
     return prisma.bill.findUnique({
@@ -82,9 +87,12 @@ export async function getBillOrFetch(billId: string) {
       introducedAt: new Date(bill.introducedDate ?? Date.now()),
       topicTags,
       fullTextUrl: null,
+      imageFetchedAt: null,
       viewCount: 1,
     },
   });
+
+  await fetchAndStoreOpenverseImage(created.id, created.title, created.topicTags);
 
   // Summarize in background (awaited so first visitor sees it)
   await generateAndStoreSummary(created.id, created.title, congress, type, number);
@@ -153,4 +161,18 @@ async function generateAndStoreSummary(
       create: { billId, plainLanguage: summary.plainLanguage, keyProvisions: summary.keyProvisions, whyItMatters: summary.whyItMatters },
     });
   } catch { /* non-fatal */ }
+}
+
+async function fetchAndStoreOpenverseImage(
+  billId: string,
+  title: string,
+  topicTags: string[]
+) {
+  try {
+    const image = await fetchBestOpenverseBillImage({ title, topicTags });
+    await prisma.bill.update({
+      where: { id: billId },
+      data: image ?? getNoImageAttemptMetadata(topicTags[0]?.toLowerCase() ?? null),
+    });
+  } catch {}
 }

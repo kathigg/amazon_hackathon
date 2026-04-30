@@ -6,6 +6,10 @@
   body {
     @apply bg-cream text-navy font-sans antialiased;
   }
+
+  ::selection {
+    @apply bg-navy text-white;
+  }
 }
 
 @layer components {
