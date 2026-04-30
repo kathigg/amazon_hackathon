@@ -3,6 +3,11 @@
  * Uses Claude via AWS Bedrock to analyze representative stances
  */
 
+import {
+  BedrockRuntimeClient,
+  InvokeModelCommand,
+} from "@aws-sdk/client-bedrock-runtime";
+
 interface BedrockConfig {
   region: string;
   accessKeyId: string;
@@ -58,10 +63,15 @@ If there's no relevant information, return neutral with low confidence.`;
 }
 
 async function callBedrock(config: BedrockConfig, prompt: string): Promise<string> {
-  // AWS Bedrock API call
-  const endpoint = `https://bedrock-runtime.${config.region}.amazonaws.com/model/${config.model}/invoke`;
+  const client = new BedrockRuntimeClient({
+    region: config.region,
+    credentials: {
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    },
+  });
 
-  const body = {
+  const payload = {
     anthropic_version: "bedrock-2023-05-31",
     max_tokens: 1024,
     messages: [
@@ -72,44 +82,17 @@ async function callBedrock(config: BedrockConfig, prompt: string): Promise<strin
     ],
   };
 
-  const headers = await signAWSRequest(
-    endpoint,
-    "POST",
-    JSON.stringify(body),
-    config
-  );
-
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
+  const command = new InvokeModelCommand({
+    modelId: config.model,
+    contentType: "application/json",
+    accept: "application/json",
+    body: JSON.stringify(payload),
   });
 
-  if (!response.ok) {
-    throw new Error(`Bedrock API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.content[0].text;
-}
-
-async function signAWSRequest(
-  url: string,
-  method: string,
-  body: string,
-  config: BedrockConfig
-): Promise<Record<string, string>> {
-  // AWS Signature V4 signing
-  // This is a simplified version - in production, use AWS SDK
-  const date = new Date().toISOString().replace(/[:-]|\.\d{3}/g, "");
-  const dateStamp = date.substring(0, 8);
-
-  return {
-    "Content-Type": "application/json",
-    "X-Amz-Date": date,
-    Authorization: `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${dateStamp}/${config.region}/bedrock/aws4_request`,
-    // Note: Full AWS signing implementation needed for production
-  };
+  const response = await client.send(command);
+  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+  
+  return responseBody.content[0].text;
 }
 
 function getBedrockConfig(): BedrockConfig {
@@ -117,7 +100,7 @@ function getBedrockConfig(): BedrockConfig {
     region: process.env.AWS_REGION || "us-east-1",
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
-    model: process.env.AWS_BEDROCK_MODEL || "anthropic.claude-3-sonnet-20240229-v1:0",
+    model: process.env.AWS_BEDROCK_MODEL || "us.anthropic.claude-haiku-4-5-20250110-v1:0",
   };
 }
 

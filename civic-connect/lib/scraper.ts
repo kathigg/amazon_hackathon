@@ -78,16 +78,14 @@ export async function scrapeAllRepresentatives(
 }
 
 // Congressional website patterns
+// Note: These are best-guess URLs. Many representatives have different URL patterns.
+// In production, you'd want to maintain a mapping or scrape from an official directory.
 export function getRepresentativeWebsiteUrl(
   chamber: string,
   state: string,
   lastName: string
-): string {
-  const lastNameLower = lastName.toLowerCase().replace(/[^a-z]/g, "");
-  
-  if (chamber === "house") {
-    return `https://${lastNameLower}.house.gov`;
-  } else {
-    return `https://www.${lastNameLower}.senate.gov`;
-  }
+): string | null {
+  // For now, return null to indicate we need to manually populate URLs
+  // or use a more reliable source
+  return null;
 }
