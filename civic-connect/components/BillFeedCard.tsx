@@ -1,7 +1,5 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
-import { Heart, MessageCircle, Share2, Bookmark, TrendingUp } from "lucide-react";
 
 interface BillFeedCardProps {
   id: string;
@@ -23,43 +21,33 @@ export default function BillFeedCard({
   sponsor,
   topicTags,
   introducedAt,
-  viewCount,
-  isPersonalized,
 }: BillFeedCardProps) {
-  const [liked, setLiked] = useState(false);
-  const [saved, setSaved] = useState(false);
-
   const timeAgo = getTimeAgo(introducedAt);
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all overflow-hidden">
+    <Link 
+      href={`/bill/${id}`}
+      className="block bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all overflow-hidden"
+    >
       {/* Header */}
       <div className="p-4 border-b border-gray-100">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-civic-blue to-civic-red flex items-center justify-center text-white font-bold text-sm">
-              {id.split("-")[0].toUpperCase()}
-            </div>
-            <div>
-              <Link href={`/bill/${id}`} className="font-semibold text-navy hover:text-civic-blue">
-                {id.toUpperCase()}
-              </Link>
-              <p className="text-xs text-gray-500">
-                Sponsored by {sponsor} · {timeAgo}
-              </p>
-            </div>
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-civic-blue to-civic-red flex items-center justify-center text-white font-bold text-sm shrink-0">
+            {id.split("-")[0].toUpperCase()}
           </div>
-          {isPersonalized && (
-            <span className="flex items-center gap-1 text-xs bg-civic-gold/10 text-civic-gold px-2 py-1 rounded-full">
-              <TrendingUp size={12} />
-              For You
-            </span>
-          )}
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-navy hover:text-civic-blue">
+              {id.toUpperCase()}
+            </p>
+            <p className="text-xs text-gray-500">
+              Sponsored by {sponsor} · {timeAgo}
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Content */}
-      <Link href={`/bill/${id}`} className="block p-4 hover:bg-gray-50 transition-colors">
+      <div className="p-4">
         <h3 className="font-bold text-navy text-lg mb-2 leading-tight line-clamp-2">
           {title}
         </h3>
@@ -92,52 +80,8 @@ export default function BillFeedCard({
           <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
           {status}
         </div>
-      </Link>
-
-      {/* Actions */}
-      <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <button
-            onClick={() => setLiked(!liked)}
-            className={`flex items-center gap-2 text-sm transition-colors ${
-              liked ? "text-red-500" : "text-gray-500 hover:text-red-500"
-            }`}
-          >
-            <Heart size={18} fill={liked ? "currentColor" : "none"} />
-            <span className="font-medium">{liked ? "Liked" : "Support"}</span>
-          </button>
-          
-          <Link
-            href={`/bill/${id}#discussion`}
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-civic-blue transition-colors"
-          >
-            <MessageCircle size={18} />
-            <span className="font-medium">Discuss</span>
-          </Link>
-          
-          <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-civic-blue transition-colors">
-            <Share2 size={18} />
-            <span className="font-medium">Share</span>
-          </button>
-        </div>
-
-        <button
-          onClick={() => setSaved(!saved)}
-          className={`transition-colors ${
-            saved ? "text-civic-gold" : "text-gray-400 hover:text-civic-gold"
-          }`}
-        >
-          <Bookmark size={20} fill={saved ? "currentColor" : "none"} />
-        </button>
       </div>
-
-      {/* View count */}
-      {viewCount > 0 && (
-        <div className="px-4 py-2 bg-gray-50 text-xs text-gray-500">
-          {viewCount.toLocaleString()} people viewed this bill
-        </div>
-      )}
-    </div>
+    </Link>
   );
 }
 
