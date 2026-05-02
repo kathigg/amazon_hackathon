@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  fetchBillsForMetadataIngest,
-  upsertBillMetadataFromCongress,
-} from "@/lib/bill-ingestion";
+import { runMetadataIngest } from "@/lib/jobs/run-ingest";
 
 // Metadata-only ingest — fast enough to fit in Vercel's 60s cron limit.
 // Summaries, votes, and cosponsors are fetched on-demand when a user visits a bill.
@@ -25,26 +22,14 @@ export async function POST(req: NextRequest) {
 }
 
 async function runIngest() {
-  const bills = await fetchBillsForMetadataIngest(119);
-  let ingested = 0;
-  let skipped = 0;
-  let breaking = 0;
-
-  const results = await Promise.allSettled(
-    bills.map((bill) => upsertBillMetadataFromCongress(bill))
-  );
-
-  for (const result of results) {
-    if (result.status === "fulfilled") {
-      ingested++;
-      if (result.value.breakingTriggered) {
-        breaking++;
-      }
-    } else {
-      skipped++;
-      console.error("Failed to ingest bill:", result.reason);
-    }
+  try {
+    const result = await runMetadataIngest();
+    return NextResponse.json(result);
+  } catch (error: any) {
+    console.error("Ingest job error:", error);
+    return NextResponse.json(
+      { error: error.message ?? "Ingest failed" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ ingested, skipped, breaking, total: bills.length });
 }

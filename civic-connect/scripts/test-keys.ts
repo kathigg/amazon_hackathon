@@ -125,7 +125,7 @@ async function testAnthropicApi(): Promise<CheckResult> {
     const result = await generateText({
       model: anthropic(modelName),
       prompt: "Reply with exactly OK.",
-      maxTokens: 10,
+      maxOutputTokens: 10,
     });
 
     return {

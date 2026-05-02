@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Menu, X } from "lucide-react";
 import BillCategoryBar from "@/components/BillCategoryBar";
 import BreakingBanner from "@/components/BreakingBanner";
@@ -112,7 +112,9 @@ export default function Navbar({ accountEmail }: NavbarProps) {
         )}
       </div>
 
-      <BillCategoryBar />
+      <Suspense fallback={null}>
+        <BillCategoryBar />
+      </Suspense>
       <BreakingBanner />
     </header>
   );

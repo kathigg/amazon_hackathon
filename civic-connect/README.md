@@ -199,8 +199,8 @@ docker compose up --build
 
 App runs at `http://localhost:3000`. On first boot Docker will automatically:
 1. Start PostgreSQL
-2. Run `prisma db push` (create tables)
-3. Run `npm run ingest` (fetch 250 bills + generate AI summaries)
+2. Run `prisma db push` for the local Docker database
+3. Run `npm run ingest` (fetch 20 bills + generate AI summaries)
 4. Start the Next.js app
 
 ### Without Docker
@@ -270,7 +270,9 @@ curl -X POST https://your-domain.com/api/ingest \
 2. Import repo in Vercel
 3. Add all environment variables in Vercel dashboard
 4. Add a Postgres database (Vercel Postgres or Neon)
-5. Deploy — `vercel.json` configures the daily cron automatically
+5. Run schema changes separately:
+   `npx prisma db push`
+6. Deploy — `vercel.json` configures the daily cron automatically
 
 ---
 
