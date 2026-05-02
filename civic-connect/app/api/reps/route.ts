@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 const CONGRESS_API_KEY = process.env.CONGRESS_API_KEY!;
 const BASE = "https://api.congress.gov/v3";
 
-// ZIP → state code via free zippopotam.us (no key needed)
 async function zipToState(zip: string): Promise<{ stateCode: string; stateName: string } | null> {
   const res = await fetch(`https://api.zippopotam.us/us/${zip}`);
   if (!res.ok) return null;
@@ -16,32 +16,85 @@ async function zipToState(zip: string): Promise<{ stateCode: string; stateName: 
   };
 }
 
-interface CongressMember {
+interface RepDTO {
+  bioguideId: string;
+  name: string;
+  party: string;
+  chamber: string;
+  office: string;
+  photoUrl: string | null;
+  websiteUrl: string | null;
+  phone: string | null;
+  officeAddress: string | null;
+}
+
+async function readFromDb(stateCode: string): Promise<RepDTO[]> {
+  const terms = await prisma.term.findMany({
+    where: { state: stateCode, endYear: null },
+    include: { member: true },
+  });
+
+  return terms.map((t) => {
+    const districtLabel = t.chamber === "Senate" || !t.district ? "" : ` — District ${t.district}`;
+    return {
+      bioguideId: t.bioguideId,
+      name: t.member.name,
+      party: t.party,
+      chamber: t.chamber,
+      office: `${t.stateName} · ${t.chamber}${districtLabel}`,
+      photoUrl: t.member.photoUrl,
+      websiteUrl: t.member.websiteUrl,
+      phone: t.member.phone,
+      officeAddress: t.member.officeAddress,
+    };
+  });
+}
+
+interface CongressMemberLive {
   bioguideId: string;
   name: string;
   partyName: string;
   state: string;
   district?: number;
   depiction?: { imageUrl?: string };
-  terms?: { item: Array<{ chamber: string; startYear: number }> };
-  url: string;
+  terms?: { item?: Array<{ chamber: string; startYear: number }> };
 }
 
-interface MemberDetail {
-  officialWebsiteUrl?: string;
-  addressInformation?: { phoneNumber?: string; officeAddress?: string };
-  depiction?: { imageUrl?: string };
-  directOrderName?: string;
-  partyHistory?: Array<{ partyName: string }>;
-}
-
-async function fetchMemberDetail(bioguideId: string): Promise<MemberDetail> {
+async function liveFallback(stateCode: string, stateName: string): Promise<RepDTO[]> {
+  // Used only when DB has nothing for this state (e.g. before first sync).
+  // Mirrors the previous behavior but fixes the dual-chamber duplicate bug.
   const res = await fetch(
-    `${BASE}/member/${bioguideId}?api_key=${CONGRESS_API_KEY}&format=json`
+    `${BASE}/member/${stateCode}?currentMember=true&limit=50&api_key=${CONGRESS_API_KEY}&format=json`
   );
-  if (!res.ok) return {};
+  if (!res.ok) return [];
   const data = await res.json();
-  return data.member ?? {};
+  const members: CongressMemberLive[] = data.members ?? [];
+
+  return members
+    .map((m): RepDTO | null => {
+      const latest = [...(m.terms?.item ?? [])].sort(
+        (a, b) => (b.startYear ?? 0) - (a.startYear ?? 0)
+      )[0];
+      if (!latest) return null;
+      const chamber =
+        latest.chamber.toLowerCase().includes("senate")
+          ? "Senate"
+          : "House of Representatives";
+      const districtLabel =
+        chamber === "Senate" || !m.district ? "" : ` — District ${m.district}`;
+      return {
+        bioguideId: m.bioguideId,
+        name: m.name,
+        party: m.partyName ?? "Unknown",
+        chamber,
+        office: `${stateName} · ${chamber}${districtLabel}`,
+        photoUrl: m.depiction?.imageUrl ?? null,
+        websiteUrl: null,
+        phone: null,
+        officeAddress: null,
+      };
+    })
+    .filter((r): r is RepDTO => r !== null);
 }
 
 export async function GET(req: NextRequest) {
@@ -57,53 +110,11 @@ export async function GET(req: NextRequest) {
 
   const { stateCode, stateName } = location;
 
-  // Fetch current members for this state using the state-specific endpoint
-  const res = await fetch(
-    `${BASE}/member/${stateCode}?currentMember=true&limit=50&api_key=${CONGRESS_API_KEY}&format=json`
-  );
-  if (!res.ok) {
-    return NextResponse.json({ error: "Congress.gov API error" }, { status: 502 });
+  let reps = await readFromDb(stateCode);
+  if (reps.length === 0) {
+    reps = await liveFallback(stateCode, stateName);
   }
 
-  const data = await res.json();
-  const members: CongressMember[] = data.members ?? [];
-
-  // Separate senators and house members
-  const senators = members.filter((m) =>
-    m.terms?.item?.some((t) => t.chamber === "Senate")
-  );
-  const houseMembers = members.filter((m) =>
-    m.terms?.item?.some((t) => t.chamber === "House of Representatives")
-  );
-
-  // Fetch details for senators (small number, always 2) + all house members
-  const toDetail = [...senators, ...houseMembers];
-  const details = await Promise.all(
-    toDetail.map((m) => fetchMemberDetail(m.bioguideId))
-  );
-
-  const reps = toDetail.map((m, i) => {
-    const detail = details[i];
-    const chamber = m.terms?.item?.some((t) => t.chamber === "Senate")
-      ? "Senate"
-      : "House of Representatives";
-    const party = detail.partyHistory?.[0]?.partyName ?? m.partyName ?? "Unknown";
-    const districtLabel = m.district ? ` — District ${m.district}` : "";
-
-    return {
-      bioguideId: m.bioguideId,
-      name: detail.directOrderName ?? m.name,
-      party,
-      chamber,
-      office: `${stateName} · ${chamber}${districtLabel}`,
-      photoUrl: detail.depiction?.imageUrl ?? m.depiction?.imageUrl,
-      websiteUrl: detail.officialWebsiteUrl,
-      phone: detail.addressInformation?.phoneNumber,
-      officeAddress: detail.addressInformation?.officeAddress,
-    };
-  });
-
-  // Sort: senators first, then house
   reps.sort((a, b) => {
     if (a.chamber === "Senate" && b.chamber !== "Senate") return -1;
     if (b.chamber === "Senate" && a.chamber !== "Senate") return 1;

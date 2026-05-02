@@ -10,7 +10,9 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "ingest": "tsx scripts/ingest.ts",
-    "seed:orgs": "tsx scripts/seed-orgs.ts"
+    "seed:orgs": "tsx scripts/seed-orgs.ts",
+    "sync:members": "tsx scripts/sync-members.ts",
+    "sync:members:full": "tsx scripts/sync-members.ts --full"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.63",

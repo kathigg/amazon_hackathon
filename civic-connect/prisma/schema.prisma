@@ -8,19 +8,20 @@ datasource db {
 }
 
 model Bill {
-  id           String   @id
-  congress     Int
-  number       String
-  type         String
-  title        String
-  sponsor      String
-  status       String
-  introducedAt DateTime
-  topicTags    String[]
-  fullTextUrl  String?
-  viewCount    Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String   @id
+  congress           Int
+  number             String
+  type               String
+  title              String
+  sponsor            String
+  sponsorBioguideId  String?
+  status             String
+  introducedAt       DateTime
+  topicTags          String[]
+  fullTextUrl        String?
+  viewCount          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   summary  Summary?
   stances  Stance[]
@@ -28,6 +29,7 @@ model Bill {
 
   @@index([topicTags])
   @@index([status])
+  @@index([sponsorBioguideId])
 }
 
 model Summary {
@@ -101,4 +103,35 @@ model PageView {
 
   @@index([path])
   @@index([createdAt])
+}
+
+model Member {
+  bioguideId    String   @id
+  name          String
+  photoUrl      String?
+  websiteUrl    String?
+  phone         String?
+  officeAddress String?
+  syncedAt      DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  terms Term[]
+}
+
+model Term {
+  id         String   @id @default(cuid())
+  bioguideId String
+  member     Member   @relation(fields: [bioguideId], references: [bioguideId], onDelete: Cascade)
+  chamber    String
+  state      String
+  stateName  String
+  district   Int?
+  party      String
+  congress   Int?
+  startYear  Int
+  endYear    Int?
+
+  @@unique([bioguideId, chamber, startYear])
+  @@index([state, chamber, endYear])
+  @@index([bioguideId])
 }

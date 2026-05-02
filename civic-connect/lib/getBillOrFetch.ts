@@ -68,6 +68,7 @@ export async function getBillOrFetch(billId: string) {
   const sponsor = s
     ? (s.fullName ?? (`${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || "Unknown"))
     : "Unknown";
+  const sponsorBioguideId = s?.bioguideId ?? null;
   const status = bill.latestAction?.text ?? "Unknown";
 
   const created = await prisma.bill.create({
@@ -78,6 +79,7 @@ export async function getBillOrFetch(billId: string) {
       type,
       title: bill.title ?? billId,
       sponsor,
+      sponsorBioguideId,
       status,
       introducedAt: new Date(bill.introducedDate ?? Date.now()),
       topicTags,
