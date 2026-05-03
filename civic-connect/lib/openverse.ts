@@ -147,11 +147,13 @@ const TOPIC_QUERY_FALLBACKS: Record<string, string[]> = {
 export async function fetchBestOpenverseBillImage({
   title,
   topicTags,
+  summary,
 }: {
   title: string;
   topicTags: string[];
+  summary?: string;
 }): Promise<OpenverseBillImage | null> {
-  const queries = buildOpenverseQueries(title, topicTags);
+  const queries = buildOpenverseQueries(title, topicTags, summary);
 
   for (const query of queries) {
     const image = await searchBestImageForQuery(query);
@@ -230,41 +232,80 @@ async function searchBestImageForQuery(query: string): Promise<OpenverseImage | 
   return [...candidates].sort((left, right) => scoreImage(right) - scoreImage(left))[0];
 }
 
-function buildOpenverseQueries(title: string, topicTags: string[]) {
+function buildOpenverseQueries(title: string, topicTags: string[], summary?: string) {
   const normalizedTitle = title.toLowerCase();
   const queries: string[] = [];
 
+  // Priority 1: Use AI summary to extract key concepts (most relevant!)
+  if (summary) {
+    const summaryKeywords = extractKeywordsFromSummary(summary);
+    if (summaryKeywords) {
+      queries.push(summaryKeywords);
+    }
+  }
+
+  // Priority 2: Check for issue-specific overrides
   for (const override of ISSUE_QUERY_OVERRIDES) {
-    if (override.matches.some((match) => normalizedTitle.includes(match))) {
+    if (override.matches.some((match) => normalizedTitle.includes(match) || summary?.toLowerCase().includes(match))) {
       queries.push(...override.queries);
       break;
     }
   }
 
+  // Priority 3: Use topic tags
   for (const topic of topicTags) {
     queries.push(...(TOPIC_QUERY_FALLBACKS[topic] ?? []));
   }
 
+  // Priority 4: Extract keywords from title (least reliable due to abbreviations)
   const titleKeywords = title
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
     .filter((word) => word.length > 2 && !TITLE_STOP_WORDS.has(word) && !/^\d+$/.test(word))
-    .slice(0, 7)
+    .slice(0, 5)
     .join(" ");
 
   if (titleKeywords) {
-    queries.push(titleKeywords);
     if (topicTags[0]) {
       queries.push(`${topicTags[0].toLowerCase()} ${titleKeywords}`);
     }
   }
 
+  // Fallback
   if (queries.length === 0) {
-    queries.push("united states policy");
+    queries.push("united states capitol building");
   }
 
   return Array.from(new Set(queries.map((query) => query.trim()).filter(Boolean)));
+}
+
+/**
+ * Extract key visual concepts from AI summary
+ * Example: "This bill would establish a new office for victims of immigration crimes"
+ * → "immigration victims support office"
+ */
+function extractKeywordsFromSummary(summary: string): string {
+  // Remove common legislative phrases
+  const cleaned = summary
+    .toLowerCase()
+    .replace(/this bill would|this bill|the bill|would require|would establish|would prohibit|would authorize/g, "")
+    .replace(/[^a-z0-9\s]/g, " ");
+
+  // Extract meaningful nouns and action words
+  const words = cleaned
+    .split(/\s+/)
+    .filter((word) => 
+      word.length > 3 && 
+      !TITLE_STOP_WORDS.has(word) && 
+      !/^\d+$/.test(word) &&
+      !["that", "this", "from", "with", "have", "been", "were", "their", "would", "could", "should"].includes(word)
+    );
+
+  // Take first 4-5 meaningful words
+  const keywords = words.slice(0, 5).join(" ");
+  
+  return keywords || "";
 }
 
 function isUsableImage(image: OpenverseImage) {

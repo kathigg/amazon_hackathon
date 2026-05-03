@@ -34,6 +34,21 @@ export async function getBillOrFetch(billId: string) {
     // Generate summary on-demand if missing
     if (!existing.summary) {
       await generateAndStoreSummary(existing.id, existing.title, existing.congress, existing.type, existing.number);
+      
+      // After generating summary, fetch image using the summary
+      const updatedBill = await prisma.bill.findUnique({
+        where: { id: billId },
+        include: { summary: true },
+      });
+      
+      if (updatedBill?.summary && !updatedBill.imageFetchedAt) {
+        await fetchAndStoreOpenverseImage(
+          updatedBill.id,
+          updatedBill.title,
+          updatedBill.topicTags,
+          updatedBill.summary.plainLanguage
+        );
+      }
     }
 
     // Fetch stances on-demand if missing (bill was ingested before stance data was available)
@@ -41,8 +56,14 @@ export async function getBillOrFetch(billId: string) {
       await fetchAndStoreStances(billId, existing.congress, existing.type, existing.number);
     }
 
-    if (!existing.imageFetchedAt) {
-      await fetchAndStoreOpenverseImage(existing.id, existing.title, existing.topicTags);
+    // Retry image fetch if it failed before and we now have a summary
+    if (!existing.imageFetchedAt && existing.summary) {
+      await fetchAndStoreOpenverseImage(
+        existing.id,
+        existing.title,
+        existing.topicTags,
+        existing.summary.plainLanguage
+      );
     }
 
     return prisma.bill.findUnique({
@@ -92,16 +113,28 @@ export async function getBillOrFetch(billId: string) {
     },
   });
 
-  await fetchAndStoreOpenverseImage(created.id, created.title, created.topicTags);
-
-  // Summarize in background (awaited so first visitor sees it)
+  // Summarize first (so we can use the summary for image search)
   await generateAndStoreSummary(created.id, created.title, congress, type, number);
+  
+  // Get the summary we just created
+  const billWithSummary = await prisma.bill.findUnique({
+    where: { id: created.id },
+    include: { summary: true },
+  });
+  
+  // Fetch image using the summary
+  await fetchAndStoreOpenverseImage(
+    created.id,
+    created.title,
+    created.topicTags,
+    billWithSummary?.summary?.plainLanguage
+  );
 
   // Fetch vote stances and cosponsors
-  await fetchAndStoreStances(billId, congress, type, number);
+  await fetchAndStoreStances(created.id, congress, type, number);
 
   return prisma.bill.findUnique({
-    where: { id: billId },
+    where: { id: created.id },
     include: { summary: true, stances: true },
   });
 }
@@ -166,10 +199,11 @@ async function generateAndStoreSummary(
 async function fetchAndStoreOpenverseImage(
   billId: string,
   title: string,
-  topicTags: string[]
+  topicTags: string[],
+  summary?: string
 ) {
   try {
-    const image = await fetchBestOpenverseBillImage({ title, topicTags });
+    const image = await fetchBestOpenverseBillImage({ title, topicTags, summary });
     await prisma.bill.update({
       where: { id: billId },
       data: image ?? getNoImageAttemptMetadata(topicTags[0]?.toLowerCase() ?? null),

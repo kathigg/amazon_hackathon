@@ -136,6 +136,7 @@ export default async function BillDetailPage({
                 imageLicenseVersion={bill.imageLicenseVersion}
                 className="h-52 w-full md:h-64"
                 preferFull
+                showAttribution={false}
               />
             </div>
 
