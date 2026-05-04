@@ -1,3 +1,4 @@
+import { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "./prisma";
 
 const accountSchemaStatements = [
@@ -27,9 +28,83 @@ const accountSchemaStatements = [
 
 let accountSchemaPromise: Promise<void> | null = null;
 
-async function applyAccountSchema() {
+function isOwnershipError(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2010" &&
+    error.meta?.code === "42501"
+  );
+}
+
+function getOwnerDatabaseUrl() {
+  const rawSecret = process.env.DATABASE_OWNER_SECRET_JSON;
+  const host = process.env.DATABASE_OWNER_HOST;
+
+  if (!rawSecret || !host) {
+    return null;
+  }
+
+  try {
+    const secret = JSON.parse(rawSecret) as {
+      username?: string;
+      password?: string;
+    };
+
+    if (!secret.username || !secret.password) {
+      return null;
+    }
+
+    const url = new URL("postgresql://placeholder");
+    url.username = secret.username;
+    url.password = secret.password;
+    url.hostname = host;
+    url.port = process.env.DATABASE_OWNER_PORT || "5432";
+    url.pathname = `/${process.env.DATABASE_OWNER_NAME || "neondb"}`;
+    url.search = "schema=public&sslmode=require";
+
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+async function applyStatements(client: Pick<PrismaClient, "$executeRawUnsafe">) {
   for (const statement of accountSchemaStatements) {
-    await prisma.$executeRawUnsafe(statement);
+    await client.$executeRawUnsafe(statement);
+  }
+}
+
+async function applyAccountSchemaWithOwner() {
+  const ownerDatabaseUrl = getOwnerDatabaseUrl();
+
+  if (!ownerDatabaseUrl) {
+    throw new Error("DATABASE_OWNER_SECRET_JSON and DATABASE_OWNER_HOST are required.");
+  }
+
+  const ownerPrisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: ownerDatabaseUrl,
+      },
+    },
+  });
+
+  try {
+    await applyStatements(ownerPrisma);
+  } finally {
+    await ownerPrisma.$disconnect();
+  }
+}
+
+async function applyAccountSchema() {
+  try {
+    await applyStatements(prisma);
+  } catch (error) {
+    if (!isOwnershipError(error)) {
+      throw error;
+    }
+
+    await applyAccountSchemaWithOwner();
   }
 }
 
