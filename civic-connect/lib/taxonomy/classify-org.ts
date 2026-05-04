@@ -118,6 +118,99 @@ function parseModelResponse(raw: string): ParsedResponse {
   };
 }
 
+export interface NormalizationInput {
+  unknownLabels: string[];
+  name?: string;
+  mission?: string;
+}
+
+export interface NormalizationResult {
+  /** Encoded LoC terms produced by mapping the unknowns. May be empty if no good matches. */
+  topicTags: string[];
+  source: "llm" | "unavailable" | "error";
+  reasoning?: string;
+}
+
+/**
+ * Map caller-submitted strings that aren't in the active taxonomy onto the
+ * closest valid labels, using the org's name/mission as disambiguation context
+ * when available. The model is shown the controlled vocab and instructed to
+ * return only matches from it; output is hard-validated post-hoc.
+ */
+export async function normalizeUnknownLabels(
+  input: NormalizationInput
+): Promise<NormalizationResult> {
+  if (input.unknownLabels.length === 0) {
+    return { topicTags: [], source: "llm" };
+  }
+  if (!isBedrockConfigured()) {
+    return { topicTags: [], source: "unavailable" };
+  }
+
+  const def = getActiveTaxonomy();
+  const prompt = buildNormalizationPrompt(def, input);
+
+  try {
+    const raw = await callBedrock(prompt);
+    const parsed = parseModelResponse(raw);
+    const validated = parsed.labels
+      .map((label) => canonicalizeValue(def, label))
+      .filter((v): v is string => Boolean(v));
+    const unique = Array.from(new Set(validated)).slice(0, MAX_LABELS);
+    return {
+      topicTags: unique.map((v) => encodeTerm(def.id, v)),
+      source: "llm",
+      reasoning: parsed.reasoning,
+    };
+  } catch (e) {
+    console.error("[normalizeUnknownLabels] Bedrock error:", e);
+    return { topicTags: [], source: "error" };
+  }
+}
+
+function buildNormalizationPrompt(
+  def: ReturnType<typeof getActiveTaxonomy>,
+  input: NormalizationInput
+): string {
+  const vocabularyBlock = def.terms
+    .map((term) => {
+      const desc = def.descriptions[term] ?? "";
+      return `- ${term}${desc ? ` — ${desc}` : ""}`;
+    })
+    .join("\n");
+
+  const contextLines: string[] = [];
+  if (input.name) contextLines.push(`Organization: ${input.name}`);
+  if (input.mission) contextLines.push(`Mission: ${input.mission}`);
+  const contextBlock =
+    contextLines.length > 0
+      ? `\nContext (use this to disambiguate the labels below):\n${contextLines.join("\n")}\n`
+      : "";
+
+  const unknownsBlock = input.unknownLabels
+    .map((u, i) => `${i + 1}. "${u}"`)
+    .join("\n");
+
+  return `You are normalizing a list of free-form topic labels onto the Library of Congress Policy Area taxonomy.
+
+The user submitted these labels for a U.S. advocacy organization, but they are NOT in the controlled vocabulary:
+${unknownsBlock}
+${contextBlock}
+For EACH submitted label, pick the 1-2 ${def.displayName} labels that best capture the same intent. If a submitted label has no reasonable match in the controlled vocab, omit it. Combine all matches across all submitted labels into ONE deduplicated list of at most ${MAX_LABELS} labels.
+
+You MUST choose ONLY from this exact list of ${def.terms.length} ${def.displayName} labels. Use the EXACT spelling and casing shown. Do not invent new labels and do not paraphrase:
+
+${vocabularyBlock}
+
+Respond with ONLY a JSON object in this exact shape (no markdown, no commentary outside the JSON):
+{
+  "labels": ["<exact label 1>", "<exact label 2>"],
+  "reasoning": "One sentence explaining the mapping."
+}
+
+If none of the submitted labels have any reasonable match, return {"labels": [], "reasoning": "<why>"}.`;
+}
+
 async function callBedrock(prompt: string): Promise<string> {
   const client = new BedrockRuntimeClient({
     region: process.env.AWS_REGION || "us-east-1",

@@ -5,7 +5,10 @@ import {
   filterPredicateForTopic,
   parseTerm,
 } from "@/lib/taxonomy";
-import { classifyOrgMission } from "@/lib/taxonomy/classify-org";
+import {
+  classifyOrgMission,
+  normalizeUnknownLabels,
+} from "@/lib/taxonomy/classify-org";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -38,23 +41,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "name and mission are required" }, { status: 400 });
   }
 
-  // Normalize incoming tags: accept either raw LoC names or pre-encoded values,
-  // store them in encoded form so org registrations match seeded orgs.
+  // Split caller-submitted tags into known (in our vocab) vs unknown (free-form
+  // strings like "voting rights" or "cryptocurrency policy").
   const incoming: string[] = Array.isArray(topicTags) ? topicTags : [];
-  let encodedTags = Array.from(
-    new Set(
-      incoming
-        .map((raw) => parseTerm(raw))
-        .filter((t): t is NonNullable<ReturnType<typeof parseTerm>> => Boolean(t))
-        .map((t) => encodeTerm(t.taxonomy, t.value))
-    )
-  );
+  const known = new Set<string>();
+  const unknown: string[] = [];
+  for (const raw of incoming) {
+    if (typeof raw !== "string" || raw.trim() === "") continue;
+    const parsed = parseTerm(raw);
+    if (parsed) {
+      known.add(encodeTerm(parsed.taxonomy, parsed.value));
+    } else {
+      unknown.push(raw.trim());
+    }
+  }
 
-  // Safety net: if the caller sent no usable tags (form skipped, scripted POST,
-  // suggester button never clicked), classify the mission via Bedrock so we
-  // never persist an unlabeled org. Failures fall through to an empty array,
-  // matching the prior behavior — this only ever adds tags, never removes.
-  let classificationSource: "client" | "llm" | "llm-unavailable" = "client";
+  let classificationSource:
+    | "client"
+    | "client+normalized"
+    | "llm"
+    | "llm-unavailable" = "client";
+  let encodedTags = Array.from(known);
+
+  // Step 1: if the caller submitted any unknown labels, ask the LLM to map
+  // them onto the closest LoC labels (uses name+mission for disambiguation).
+  // Adds to the known set; never removes anything the caller validly chose.
+  if (unknown.length > 0) {
+    const normalized = await normalizeUnknownLabels({
+      unknownLabels: unknown,
+      name,
+      mission,
+    });
+    if (normalized.source === "llm" && normalized.topicTags.length > 0) {
+      encodedTags = Array.from(new Set([...encodedTags, ...normalized.topicTags]));
+      classificationSource = encodedTags.length > known.size ? "client+normalized" : "client";
+    }
+  }
+
+  // Step 2: safety net — if we still have nothing (form skipped, scripted POST
+  // with no tags, all unknowns failed to normalize), classify the mission
+  // directly. Same prompt pattern, mission as the only signal.
   if (encodedTags.length === 0) {
     const result = await classifyOrgMission({ name, mission });
     if (result.source === "llm" && result.topicTags.length > 0) {
