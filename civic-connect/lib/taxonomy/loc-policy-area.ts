@@ -197,6 +197,41 @@ const KEYWORD_RULES = [
   { term: "Law", keywords: ["supreme court", "judge", "judicial", "bankruptcy", "habeas"] },
 ] as const;
 
+const DESCRIPTIONS: Record<string, string> = {
+  "Agriculture and Food": "Farm policy, food production and safety, crop subsidies, USDA, rural development.",
+  Animals: "Animal welfare, wildlife protection, endangered species, pets and livestock treatment.",
+  "Armed Forces and National Security": "Military operations, defense, veterans affairs, intelligence, national security.",
+  "Arts, Culture, Religion": "Arts funding, museums, humanities, religious affairs, cultural preservation.",
+  "Civil Rights and Liberties, Minority Issues": "Civil rights, voting rights, anti-discrimination, LGBTQ+ rights, reproductive rights, minority issues, civil liberties.",
+  Commerce: "Business regulation, antitrust, consumer protection, small business, FTC.",
+  Congress: "Congressional operations, ethics, oversight, Capitol Police, congressional procedures.",
+  "Crime and Law Enforcement": "Criminal law, policing, gun policy, prisons, sentencing, drug enforcement, public safety.",
+  "Economics and Public Finance": "Federal budget, deficit, economic policy, fiscal policy, government spending, debt.",
+  Education: "Schools, K-12, higher education, student aid, teachers, curriculum.",
+  "Emergency Management": "Disaster response, FEMA, hurricanes, wildfires, earthquakes, emergency preparedness.",
+  Energy: "Oil, gas, renewables, nuclear, electric grid, energy policy.",
+  "Environmental Protection": "Pollution, climate change, EPA, conservation, environmental regulation.",
+  Families: "Family policy, child care, marriage, parental leave, foster care, adoption.",
+  "Finance and Financial Sector": "Banking, securities, lending, financial regulation, SEC, Wall Street.",
+  "Foreign Trade and International Finance": "Trade agreements, tariffs, exports/imports, customs, WTO.",
+  "Government Operations and Politics": "Federal agencies, civil service, elections, campaign finance, government ethics.",
+  Health: "Healthcare, insurance, hospitals, drugs, mental health, FDA, Medicare/Medicaid, public health.",
+  "Housing and Community Development": "Affordable housing, HUD, homelessness, urban development, housing policy.",
+  Immigration: "Visas, asylum, citizenship, border policy, refugees, immigration enforcement.",
+  "International Affairs": "Diplomacy, treaties, foreign aid, sanctions, NATO, international relations.",
+  "Labor and Employment": "Workers' rights, unions, wages, workplace safety, employment law.",
+  Law: "Courts, judiciary, civil and criminal procedure, bankruptcy, judicial appointments.",
+  "Native Americans": "Tribal nations, BIA, native sovereignty, indigenous rights, tribal lands.",
+  "Public Lands and Natural Resources": "National parks, BLM, federal lands, wilderness, mining, forestry.",
+  "Science, Technology, Communications": "AI, internet, telecom, broadband, R&D, data privacy, cybersecurity, technology policy.",
+  "Social Sciences and History": "Census, statistics, archives, research, historical preservation.",
+  "Social Welfare": "Welfare programs, food assistance (SNAP), anti-poverty programs, social services.",
+  "Sports and Recreation": "Sports policy, parks, recreation, athletics, Olympics.",
+  Taxation: "Tax code, IRS, individual and corporate taxes, tax credits, revenue policy.",
+  "Transportation and Public Works": "Highways, bridges, transit, ports, airports, infrastructure.",
+  "Water Resources Development": "Dams, irrigation, watersheds, water rights, water infrastructure.",
+};
+
 const IMAGE_QUERIES: Record<string, string[]> = {
   "Agriculture and Food": ["farm fields agriculture"],
   Animals: ["wildlife conservation animals"],
@@ -241,4 +276,5 @@ export const LOC_POLICY_AREA: TaxonomyDefinition = {
   aliases: ALIASES,
   keywordRules: KEYWORD_RULES,
   imageQueries: IMAGE_QUERIES,
+  descriptions: DESCRIPTIONS,
 };

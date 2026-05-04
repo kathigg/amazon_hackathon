@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getActiveTaxonomy } from "@/lib/taxonomy";
-import { ArrowLeft } from "lucide-react";
+import { getActiveTaxonomy, parseTerm } from "@/lib/taxonomy";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 const ACTIVE_TAXONOMY = getActiveTaxonomy();
@@ -18,6 +18,8 @@ export default function RegisterOrgPage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestionNote, setSuggestionNote] = useState<string | null>(null);
 
   function toggleTag(tag: string) {
     setForm((f) => ({
@@ -26,6 +28,62 @@ export default function RegisterOrgPage() {
         ? f.topicTags.filter((t) => t !== tag)
         : [...f.topicTags, tag],
     }));
+  }
+
+  async function suggestTags() {
+    if (form.mission.trim().length < 10) {
+      setSuggestionNote("Write at least a sentence of mission first.");
+      return;
+    }
+    setSuggesting(true);
+    setSuggestionNote(null);
+    try {
+      const res = await fetch("/api/orgs/suggest-tags", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name, mission: form.mission }),
+      });
+      const data: {
+        topicTags?: string[];
+        source?: string;
+        reasoning?: string;
+        error?: string;
+      } = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setSuggestionNote(data.error || "Suggestion failed.");
+        return;
+      }
+      if (data.source === "unavailable") {
+        setSuggestionNote("Tag suggestions are unavailable right now — please pick manually.");
+        return;
+      }
+      if (data.source === "error") {
+        setSuggestionNote("Couldn't classify the mission — please pick manually.");
+        return;
+      }
+      const suggestedRaw = Array.isArray(data.topicTags) ? data.topicTags : [];
+      const suggested = suggestedRaw
+        .map((t) => parseTerm(t)?.value)
+        .filter((v): v is string => Boolean(v));
+      if (suggested.length === 0) {
+        setSuggestionNote("No confident matches — pick manually below.");
+        return;
+      }
+      setForm((f) => {
+        const merged = Array.from(new Set([...f.topicTags, ...suggested]));
+        return { ...f, topicTags: merged };
+      });
+      setSuggestionNote(
+        data.reasoning
+          ? `Suggested: ${suggested.length} label${suggested.length === 1 ? "" : "s"}. ${data.reasoning}`
+          : `Suggested ${suggested.length} label${suggested.length === 1 ? "" : "s"}. Edit before submitting.`
+      );
+    } catch (e) {
+      setSuggestionNote(e instanceof Error ? e.message : "Suggestion failed.");
+    } finally {
+      setSuggesting(false);
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -102,7 +160,21 @@ export default function RegisterOrgPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-navy mb-3">Issue Areas</label>
+          <div className="flex items-center justify-between mb-3">
+            <label className="block text-sm font-semibold text-navy">Issue Areas</label>
+            <button
+              type="button"
+              onClick={suggestTags}
+              disabled={suggesting}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-civic-blue hover:text-navy transition-colors disabled:opacity-50"
+            >
+              <Sparkles size={14} />
+              {suggesting ? "Suggesting…" : "Suggest from mission"}
+            </button>
+          </div>
+          {suggestionNote && (
+            <p className="text-xs text-gray-500 mb-3 italic">{suggestionNote}</p>
+          )}
           <div className="space-y-4">
             {ACTIVE_TAXONOMY.groups.map((group) => (
               <div key={group.label}>

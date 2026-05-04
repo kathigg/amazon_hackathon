@@ -26,4 +26,6 @@ export interface TaxonomyDefinition {
   aliases: Readonly<Record<string, string>>;
   keywordRules: readonly KeywordRule[];
   imageQueries: Readonly<Record<string, readonly string[]>>;
+  /** One-line scope notes per term, used to teach an LLM classifier what each label covers. */
+  descriptions: Readonly<Record<string, string>>;
 }
