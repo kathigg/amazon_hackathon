@@ -28,18 +28,38 @@ export async function fetchRecentBills(
   return data.bills ?? [];
 }
 
+export interface BillDetail {
+  sponsor: string;
+  policyArea: string | null;
+  subjects: string[];
+  introducedDate: string | null;
+  latestActionDate: string | null;
+}
+
 export async function fetchBillDetail(
   congress: number,
   type: string,
   number: string
-): Promise<{ sponsor: string } | null> {
+): Promise<BillDetail | null> {
   const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}?api_key=${getKey()}&format=json`;
   const res = await fetch(url, { next: { revalidate: 3600 } });
   if (!res.ok) return null;
   const data = await res.json();
   const s = data.bill?.sponsors?.[0];
   const sponsor = s ? `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() : null;
-  return { sponsor: sponsor || "Unknown" };
+  const policyArea: string | null = data.bill?.policyArea?.name ?? null;
+  const rawSubjects: Array<{ name?: string }> =
+    data.bill?.subjects?.legislativeSubjects ?? [];
+  const subjects = rawSubjects
+    .map((entry) => entry.name)
+    .filter((name): name is string => Boolean(name));
+  return {
+    sponsor: sponsor || "Unknown",
+    policyArea,
+    subjects,
+    introducedDate: data.bill?.introducedDate ?? null,
+    latestActionDate: data.bill?.latestAction?.actionDate ?? null,
+  };
 }
 
 export interface CosponsorTally {

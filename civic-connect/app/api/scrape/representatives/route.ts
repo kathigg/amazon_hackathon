@@ -3,10 +3,22 @@ import { runRepresentativeScrapeJob } from "@/lib/jobs/run-scrape-batch";
 
 export const maxDuration = 300; // 5 minutes
 
-export async function POST(req: NextRequest) {
-  // Verify cron secret
-  const secret = req.headers.get("x-cron-secret");
-  if (secret !== process.env.CRON_SECRET) {
+function isAuthorized(req: NextRequest) {
+  const headerSecret = req.headers.get("x-cron-secret");
+  const authHeader = req.headers.get("authorization");
+  const querySecret = req.nextUrl.searchParams.get("secret");
+  const expected = process.env.CRON_SECRET;
+
+  return (
+    !expected ||
+    headerSecret === expected ||
+    authHeader === `Bearer ${expected}` ||
+    querySecret === expected
+  );
+}
+
+async function handleScrape(req: NextRequest) {
+  if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -20,4 +32,12 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+export async function GET(req: NextRequest) {
+  return handleScrape(req);
+}
+
+export async function POST(req: NextRequest) {
+  return handleScrape(req);
 }

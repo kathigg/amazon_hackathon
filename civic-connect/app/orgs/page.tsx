@@ -1,14 +1,25 @@
-import { prisma } from "@/lib/prisma";
-import { TOPIC_TAGS } from "@/lib/topics";
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import {
+  filterPredicateForTopic,
+  getActiveTaxonomy,
+} from "@/lib/taxonomy";
 import OrgCard from "@/components/OrgCard";
 
 export const dynamic = "force-dynamic";
 
+const ACTIVE_TAXONOMY = getActiveTaxonomy();
+
 async function getOrgs(topic?: string, q?: string) {
   return prisma.organization.findMany({
     where: {
-      ...(topic ? { topicTags: { has: topic } } : {}),
+      ...(topic
+        ? {
+            topicTags: {
+              hasSome: filterPredicateForTopic(topic),
+            },
+          }
+        : {}),
       ...(q
         ? {
             OR: [
@@ -35,28 +46,36 @@ export default async function OrgsPage({
 }: {
   searchParams: { topic?: string; q?: string };
 }) {
-  const orgs = await getOrgs(searchParams.topic, searchParams.q);
+  const selected = searchParams.topic;
+  const query = searchParams.q?.trim() ?? "";
+  const orgs = await getOrgs(selected, query || undefined);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10">
+    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <div className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <h1 className="font-display text-4xl font-bold text-navy mb-2">Organizations</h1>
-          <p className="text-gray-500">Connect with advocacy groups active on the issues you care about.</p>
+          <h1 className="mb-2 font-display text-4xl font-bold text-navy">
+            Organizations
+          </h1>
+          <p className="text-gray-500">
+            Search and filter advocacy groups active on the issues our readers
+            care about most.
+          </p>
         </div>
-        <Link href="/orgs/register" className="btn-primary text-sm self-start md:self-auto">
+        <Link
+          href="/orgs/register"
+          className="btn-primary self-start text-sm md:self-auto"
+        >
           + Register Your Org
         </Link>
       </div>
 
-      <form method="GET" className="flex flex-col gap-3 mb-8 sm:flex-row">
-        {searchParams.topic && (
-          <input type="hidden" name="topic" value={searchParams.topic} />
-        )}
+      <form method="GET" className="mb-8 flex flex-col gap-3 sm:flex-row">
+        {selected && <input type="hidden" name="topic" value={selected} />}
         <input
           type="text"
           name="q"
-          defaultValue={searchParams.q}
+          defaultValue={query}
           placeholder="Search organizations, missions, or locations"
           className="w-full border border-black/15 bg-white px-4 py-3 text-sm text-navy outline-none transition-colors placeholder:text-navy/35 focus:border-navy"
         />
@@ -68,44 +87,84 @@ export default async function OrgsPage({
         </button>
       </form>
 
-      {/* Topic filters */}
-      <div className="flex flex-wrap gap-2 mb-10">
-        <Link
-          href={searchParams.q ? `/orgs?q=${encodeURIComponent(searchParams.q)}` : "/orgs"}
-          className={`tag px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
-            !searchParams.topic ? "bg-navy text-white border-navy" : "border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
-          }`}
-        >
-          All
-        </Link>
-        {TOPIC_TAGS.map((tag) => (
+      <div className="mb-10 space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
-            key={tag}
-            href={`/orgs?topic=${encodeURIComponent(tag)}${searchParams.q ? `&q=${encodeURIComponent(searchParams.q)}` : ""}`}
-            className={`tag px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
-              searchParams.topic === tag ? "bg-navy text-white border-navy" : "border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
+            href={buildOrgsHref({ q: query || undefined })}
+            className={`tag rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+              !selected
+                ? "border-navy bg-navy text-white"
+                : "border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
             }`}
           >
-            {tag}
+            All
           </Link>
+        </div>
+        {ACTIVE_TAXONOMY.groups.map((group) => (
+          <div key={group.label}>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+              {group.label}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {group.terms.map((tag) => (
+                <Link
+                  key={tag}
+                  href={buildOrgsHref({
+                    topic: tag,
+                    q: query || undefined,
+                  })}
+                  className={`tag rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    selected === tag
+                      ? "border-navy bg-navy text-white"
+                      : "border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
+                  }`}
+                >
+                  {tag}
+                </Link>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
       {orgs.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {orgs.map((org) => (
             <OrgCard key={org.id} org={org} />
           ))}
         </div>
       ) : (
-        <div className="text-center py-24 text-gray-400">
-          <p className="text-5xl mb-4">🏢</p>
+        <div className="py-24 text-center text-gray-400">
           <p className="text-lg">No organizations matched that search yet.</p>
-          <Link href="/orgs/register" className="btn-primary inline-block mt-6 text-sm">
+          <Link
+            href="/orgs/register"
+            className="btn-primary mt-6 inline-block text-sm"
+          >
             Be the first to register
           </Link>
         </div>
       )}
     </div>
   );
+}
+
+function buildOrgsHref({
+  topic,
+  q,
+}: {
+  topic?: string;
+  q?: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (topic) {
+    params.set("topic", topic);
+  }
+
+  if (q) {
+    params.set("q", q);
+  }
+
+  const query = params.toString();
+  return query ? `/orgs?${query}` : "/orgs";
 }

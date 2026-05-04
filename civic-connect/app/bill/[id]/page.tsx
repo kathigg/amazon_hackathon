@@ -1,4 +1,9 @@
+import Link from "next/link";
+import { AlertCircle, ArrowLeft, CheckCircle, Clock } from "lucide-react";
 import { getBillOrFetch } from "@/lib/getBillOrFetch";
+import { getViewerLocation } from "@/lib/viewer-location";
+import { getRepsByStateName, type RepSummary } from "@/lib/getRepsByState";
+import { getRepsByZip } from "@/lib/getRepsByZip";
 import StanceCard from "@/components/StanceCard";
 import ActionCard from "@/components/ActionCard";
 import FeedbackButton from "@/components/FeedbackButton";
@@ -13,8 +18,8 @@ import { getBillChamberFocus } from "@/lib/legislative";
 import { getRelatedOrganizationsAndEvents } from "@/lib/organization-matching";
 import { getSummaryPreview } from "@/lib/bill-summary";
 import { formatTopicTag } from "@/lib/topics";
-import Link from "next/link";
-import { ArrowLeft, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { parseTerm } from "@/lib/taxonomy";
+import { formatBillDate } from "@/lib/bill-dates";
 
 export const dynamic = "force-dynamic";
 
@@ -24,92 +29,141 @@ async function getBill(id: string) {
 
 function StatusIcon({ status }: { status: string }) {
   const lower = status.toLowerCase();
-  if (lower.includes("became law") || lower.includes("signed"))
+  if (lower.includes("became law") || lower.includes("signed")) {
     return <CheckCircle className="text-green-500" size={20} />;
-  if (lower.includes("passed"))
+  }
+  if (lower.includes("passed")) {
     return <CheckCircle className="text-blue-500" size={20} />;
-  if (lower.includes("introduced"))
+  }
+  if (lower.includes("introduced")) {
     return <Clock className="text-amber-500" size={20} />;
+  }
   return <AlertCircle className="text-gray-400" size={20} />;
 }
 
 export default async function BillDetailPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams: { devState?: string; devPostal?: string };
 }) {
   const bill = await getBill(params.id);
   if (!bill) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-24 text-center">
-        <h1 className="font-display text-3xl font-bold text-navy mb-3">Bill Not Found</h1>
-        <p className="text-gray-500 mb-4">
-          We couldn't find or fetch <code className="bg-gray-100 px-2 py-0.5 rounded text-sm">{params.id}</code>.
+      <div className="mx-auto max-w-3xl px-4 py-24 text-center">
+        <h1 className="mb-3 font-display text-3xl font-bold text-navy">
+          Bill Not Found
+        </h1>
+        <p className="mb-4 text-gray-500">
+          We couldn&apos;t find or fetch{" "}
+          <code className="rounded bg-gray-100 px-2 py-0.5 text-sm">
+            {params.id}
+          </code>
+          .
         </p>
-        <p className="text-gray-400 text-sm mb-8">
-          Make sure the bill ID is in the format <code className="bg-gray-100 px-1 rounded">hr-1-119</code> (type-number-congress), and that your Congress.gov API key is valid.
+        <p className="mb-8 text-sm text-gray-400">
+          Make sure the bill ID is in the format{" "}
+          <code className="rounded bg-gray-100 px-1">hr-1-119</code>{" "}
+          (type-number-congress), and that your Congress.gov API key is valid.
         </p>
-        <Link href="/bills" className="btn-primary inline-block">Back to Bills</Link>
+        <Link href="/bills" className="btn-primary inline-block">
+          Back to Bills
+        </Link>
       </div>
     );
   }
 
   const currentUser = await getCurrentUser().catch(() => null);
-  const { orgs, events } = await getRelatedOrganizationsAndEvents(bill.topicTags);
+  const { orgs, events } = await getRelatedOrganizationsAndEvents(
+    bill.topicTags
+  );
   const chamberFocus = getBillChamberFocus(bill.status, bill.type);
   const plainLanguage = getSummaryPreview(bill.summary?.plainLanguage);
   const whyItMatters = getSummaryPreview(bill.summary?.whyItMatters);
+
+  const viewerLocation = getViewerLocation(
+    searchParams.devState ?? null,
+    searchParams.devPostal ?? null
+  );
+  const preferredZipCode = currentUser?.zipCode?.trim() || null;
+  const zipForLookup = preferredZipCode || viewerLocation.postalCode || null;
+
+  let viewerReps: RepSummary[] = [];
+  if (zipForLookup) {
+    viewerReps = await getRepsByZip(zipForLookup);
+  }
+  if (viewerReps.length === 0 && viewerLocation.stateName) {
+    viewerReps = await getRepsByStateName(viewerLocation.stateName);
+  }
+  const viewerStateName = viewerReps[0]?.state ?? viewerLocation.stateName ?? null;
+
   type StanceWithCosponsors = {
-    id: string; billId: string; party: string; position: string;
-    voteYes: number; voteNo: number; cosponsors?: number; source: string;
+    id: string;
+    billId: string;
+    party: string;
+    position: string;
+    voteYes: number;
+    voteNo: number;
+    cosponsors?: number;
+    source: string;
   };
-  const demStance = bill.stances.find((s: StanceWithCosponsors) => s.party === "Democrat") as StanceWithCosponsors | undefined;
-  const repStance = bill.stances.find((s: StanceWithCosponsors) => s.party === "Republican") as StanceWithCosponsors | undefined;
+  const demStance = bill.stances.find(
+    (stance: StanceWithCosponsors) => stance.party === "Democrat"
+  ) as StanceWithCosponsors | undefined;
+  const repStance = bill.stances.find(
+    (stance: StanceWithCosponsors) => stance.party === "Republican"
+  ) as StanceWithCosponsors | undefined;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="mx-auto max-w-7xl px-4 pb-6 pt-3 sm:px-6 lg:px-8">
       <PageViewTracker billId={bill.id} />
       <BillViewTracker billId={bill.id} topics={bill.topicTags} />
-      {/* Back */}
+
       <Link
         href="/bills"
-        className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-navy mb-5 transition-colors"
+        className="mb-5 inline-flex items-center gap-2 text-sm text-gray-500 transition-colors hover:text-navy"
       >
         <ArrowLeft size={16} /> Back to Bills
       </Link>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main content */}
-        <div className="lg:col-span-2 flex flex-col gap-8">
-          {/* Issue Card — full detail */}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        <div className="flex flex-col gap-8 lg:col-span-2">
           <div className="card p-6 sm:p-8">
             <div className="grid gap-6 md:grid-cols-[1fr_270px] md:items-start">
               <div>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {bill.topicTags.map((tag: string) => (
-                    <Link
-                      key={tag}
-                      href={`/bills?topic=${encodeURIComponent(tag)}`}
-                      className="tag bg-blue-50 text-civic-blue hover:bg-civic-blue hover:text-white transition-colors"
-                    >
-                      {formatTopicTag(tag)}
-                    </Link>
-                  ))}
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {bill.topicTags.map((tag: string) => {
+                    const human = parseTerm(tag)?.value ?? tag;
+                    return (
+                      <Link
+                        key={tag}
+                        href={`/bills?topic=${encodeURIComponent(human)}`}
+                        className="tag bg-blue-50 text-civic-blue transition-colors hover:bg-civic-blue hover:text-white"
+                      >
+                        {formatTopicTag(tag)}
+                      </Link>
+                    );
+                  })}
                 </div>
 
                 <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
                   {bill.type} {bill.number} · {bill.congress}th Congress
                 </span>
 
-                <h1 className="font-display text-2xl md:text-3xl font-bold text-navy mt-2 mb-6 leading-tight">
+                <h1 className="mt-2 mb-6 font-display text-2xl font-bold leading-tight text-navy md:text-3xl">
                   {bill.title}
                 </h1>
 
-                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl">
+                <div className="flex items-center gap-2 rounded-xl bg-gray-50 p-3">
                   <StatusIcon status={bill.status} />
                   <div>
-                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Current Status</p>
-                    <p className="text-sm text-navy font-medium">{bill.status}</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                      Current Status
+                    </p>
+                    <p className="text-sm font-medium text-navy">
+                      {bill.status}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -131,7 +185,9 @@ export default async function BillDetailPage({
 
             {bill.imagePageUrl && (
               <div className="mt-4 text-xs text-gray-500">
-                <span className="font-medium text-gray-600">Illustrative image:</span>{" "}
+                <span className="font-medium text-gray-600">
+                  Illustrative image:
+                </span>{" "}
                 <a
                   href={bill.imagePageUrl}
                   target="_blank"
@@ -143,65 +199,75 @@ export default async function BillDetailPage({
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8 text-sm">
+            <div className="mt-8 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Sponsor</p>
+                <p className="mb-1 text-xs uppercase tracking-wide text-gray-400">
+                  Sponsor
+                </p>
                 <p className="font-medium text-navy">{bill.sponsor}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Introduced</p>
+                <p className="mb-1 text-xs uppercase tracking-wide text-gray-400">
+                  Introduced
+                </p>
                 <p className="font-medium text-navy">
-                  {new Date(bill.introducedAt).toLocaleDateString("en-US", {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
+                  {formatBillDate(bill.introducedAt)}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Legislative Progress Flowchart */}
           <BillProgressFlow status={bill.status} />
 
-          {/* AI Summary card */}
           <div className="card p-6 sm:p-8">
-            {/* AI Summary */}
-            {bill.summary && (plainLanguage || bill.summary.keyProvisions.length > 0 || whyItMatters) ? (
+            {bill.summary &&
+            (plainLanguage || bill.summary.keyProvisions.length > 0 || whyItMatters) ? (
               <div>
-                <div className="flex items-center justify-between mb-3">
+                <div className="mb-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <h2 className="font-bold text-navy">Plain-Language Summary</h2>
-                    <span className="tag bg-amber-100 text-amber-700 text-xs">AI Generated</span>
+                    <span className="tag bg-amber-100 text-xs text-amber-700">
+                      AI Generated
+                    </span>
                   </div>
                   <FeedbackButton billId={bill.id} />
                 </div>
                 {plainLanguage && (
-                  <p className="text-gray-700 leading-relaxed mb-6">{plainLanguage}</p>
+                  <p className="mb-6 leading-relaxed text-gray-700">
+                    {plainLanguage}
+                  </p>
                 )}
 
                 {bill.summary.keyProvisions.length > 0 && (
                   <div>
-                    <h3 className="font-semibold text-navy mb-3">Key Provisions</h3>
+                    <h3 className="mb-3 font-semibold text-navy">
+                      Key Provisions
+                    </h3>
                     <ul className="space-y-2">
-                      {bill.summary.keyProvisions.map((p: string, i: number) => (
-                        <li key={i} className="flex items-start gap-3 text-sm text-gray-700">
-                          <span className="w-5 h-5 rounded-full bg-civic-blue text-white text-xs flex items-center justify-center shrink-0 mt-0.5">
-                            {i + 1}
-                          </span>
-                          {p}
-                        </li>
-                      ))}
+                      {bill.summary.keyProvisions.map(
+                        (provision: string, index: number) => (
+                          <li
+                            key={index}
+                            className="flex items-start gap-3 text-sm text-gray-700"
+                          >
+                            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-civic-blue text-xs text-white">
+                              {index + 1}
+                            </span>
+                            {provision}
+                          </li>
+                        )
+                      )}
                     </ul>
                   </div>
                 )}
 
                 {(whyItMatters || plainLanguage) && (
-                  <div className="mt-6 p-4 bg-civic-gold/10 border border-civic-gold/30 rounded-xl">
-                    <h3 className="font-semibold text-navy mb-2 flex items-center gap-2">
-                      <span className="text-civic-gold">★</span> Why This Matters
+                  <div className="mt-6 rounded-xl border border-civic-gold/30 bg-civic-gold/10 p-4">
+                    <h3 className="mb-2 flex items-center gap-2 font-semibold text-navy">
+                      <span className="text-civic-gold">★</span> Why It Matters
+                      And Who It Affects
                     </h3>
-                    <p className="text-sm text-gray-700 leading-relaxed">
+                    <p className="text-sm leading-relaxed text-gray-700">
                       {whyItMatters || plainLanguage}
                     </p>
                   </div>
@@ -212,40 +278,48 @@ export default async function BillDetailPage({
             )}
           </div>
 
-          {/* Representative Stances */}
           <RepresentativeStances
             billId={bill.id}
             chamber={chamberFocus}
             preferredRepBioguideIds={currentUser?.preferredRepBioguideIds ?? []}
           />
 
-          {/* Stance Cards */}
           {(demStance || repStance) && (
             <div id="stances">
-              <h2 className="font-display text-2xl font-bold text-navy mb-2">Party Positions</h2>
+              <h2 className="mb-2 font-display text-2xl font-bold text-navy">
+                Party Positions
+              </h2>
 
-              {/* Endorsement summary bar */}
               {(() => {
-                const totalEndorsed = (demStance?.cosponsors ?? 0) + (repStance?.cosponsors ?? 0);
-                const totalVoted = (demStance?.voteYes ?? 0) + (demStance?.voteNo ?? 0) + (repStance?.voteYes ?? 0) + (repStance?.voteNo ?? 0);
+                const totalEndorsed =
+                  (demStance?.cosponsors ?? 0) + (repStance?.cosponsors ?? 0);
+                const totalVoted =
+                  (demStance?.voteYes ?? 0) +
+                  (demStance?.voteNo ?? 0) +
+                  (repStance?.voteYes ?? 0) +
+                  (repStance?.voteNo ?? 0);
+
                 if (totalEndorsed === 0 && totalVoted === 0) return null;
+
                 return (
-                  <div className="flex flex-wrap gap-4 mb-4 p-4 bg-gray-50 rounded-xl text-sm">
+                  <div className="mb-4 flex flex-wrap gap-4 rounded-xl bg-gray-50 p-4 text-sm">
                     {totalEndorsed > 0 && (
                       <span className="text-navy">
-                        <span className="font-bold">{totalEndorsed}</span> members formally cosponsored
+                        <span className="font-bold">{totalEndorsed}</span>{" "}
+                        members formally cosponsored
                       </span>
                     )}
                     {totalVoted > 0 && (
                       <span className="text-navy">
-                        <span className="font-bold">{totalVoted}</span> members cast a recorded vote
+                        <span className="font-bold">{totalVoted}</span> members
+                        cast a recorded vote
                       </span>
                     )}
                   </div>
                 );
               })()}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {demStance && (
                   <StanceCard
                     party="Democrat"
@@ -267,17 +341,24 @@ export default async function BillDetailPage({
                   />
                 )}
               </div>
-              <p className="text-xs text-gray-400 mt-3">
-                Cosponsor data and vote records sourced from Congress.gov. Reflects formal legislative actions only — not editorial opinion.
+              <p className="mt-3 text-xs text-gray-400">
+                Cosponsor data and vote records sourced from Congress.gov.
+                Reflects formal legislative actions only.
               </p>
             </div>
           )}
         </div>
 
-        {/* Sidebar — Action Card */}
         <div id="action" className="lg:col-span-1">
           <div className="sticky top-24">
-            <ActionCard orgs={orgs} events={events} billId={bill.id} billTags={bill.topicTags} />
+            <ActionCard
+              orgs={orgs}
+              events={events}
+              billId={bill.id}
+              billTags={bill.topicTags}
+              viewerReps={viewerReps}
+              viewerStateName={viewerStateName}
+            />
           </div>
         </div>
       </div>

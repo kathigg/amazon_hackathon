@@ -13,6 +13,9 @@
     "seed:orgs": "tsx scripts/seed-orgs.ts",
     "seed:reps": "tsx scripts/seed-representatives.ts",
     "regenerate:images": "tsx scripts/regenerate-images.ts",
+    "backfill:dates": "tsx scripts/backfill-introduced-dates.ts",
+    "backfill:taxonomy": "tsx scripts/backfill-policy-areas.ts",
+    "enrich:tags": "tsx scripts/enrich-bill-tags.ts",
     "test:db": "tsx scripts/test-db.ts",
     "test:keys": "tsx scripts/test-keys.ts"
   },
@@ -20,7 +23,7 @@
     "@ai-sdk/anthropic": "^3.0.63",
     "@ai-sdk/google": "^3.0.52",
     "@ai-sdk/openai": "^3.0.47",
-    "@aws-sdk/client-bedrock-runtime": "^3.1039.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1041.0",
     "@aws-sdk/client-sesv2": "^3.1041.0",
     "@google/generative-ai": "^0.24.1",
     "@lottiefiles/react-lottie-player": "^3.6.0",

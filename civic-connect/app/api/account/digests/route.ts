@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dispatchDueDigestEmails } from "@/lib/account-digests";
 
-export async function POST(req: NextRequest) {
+function isAuthorized(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const cronSecret = req.headers.get("x-cron-secret");
+  const querySecret = req.nextUrl.searchParams.get("secret");
   const expected = process.env.CRON_SECRET;
 
-  if (
-    expected &&
-    authHeader !== `Bearer ${expected}` &&
-    cronSecret !== expected
-  ) {
+  return (
+    !expected ||
+    authHeader === `Bearer ${expected}` ||
+    cronSecret === expected ||
+    querySecret === expected
+  );
+}
+
+async function handleDigestDispatch(req: NextRequest) {
+  if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -24,4 +30,12 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+export async function GET(req: NextRequest) {
+  return handleDigestDispatch(req);
+}
+
+export async function POST(req: NextRequest) {
+  return handleDigestDispatch(req);
 }

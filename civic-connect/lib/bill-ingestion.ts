@@ -1,8 +1,10 @@
 import { prisma } from "./prisma";
 import { fetchBillDetail, fetchRecentBills, type CongressBill } from "./congress";
-import { inferTopics, normalizeTopicTags } from "./topics";
+import { classifyBillTaxonomy } from "./taxonomy/classify";
+import { parseTerm } from "./taxonomy";
 import { isMajorBillAction } from "./breaking-bills";
 import { fetchBestOpenverseBillImage, getNoImageAttemptMetadata } from "./openverse";
+import { parseCongressDate } from "./bill-dates";
 
 export const BILL_METADATA_INGEST_LIMIT = 100;
 
@@ -15,13 +17,14 @@ export async function fetchBillsForMetadataIngest(
 
 export async function upsertBillMetadataFromCongress(bill: CongressBill) {
   const billId = `${bill.type.toLowerCase()}-${bill.number}-${bill.congress}`;
-  const topicTags = normalizeTopicTags(inferTopics(bill.title), bill.title);
   const detail = await fetchBillDetail(bill.congress, bill.type, bill.number);
+  const classification = classifyBillTaxonomy(detail, bill.title);
+  const { topicTags } = classification;
   const sponsor = detail?.sponsor ?? bill.sponsors?.[0]?.fullName ?? "Unknown";
   const status = bill.latestAction?.text ?? "Unknown";
   const introducedAt = parseIntroducedDate(
-    bill.introducedDate,
-    bill.latestAction?.actionDate
+    detail?.introducedDate ?? bill.introducedDate,
+    detail?.latestActionDate ?? bill.latestAction?.actionDate
   );
   const existing = await prisma.bill.findUnique({
     where: { id: billId },
@@ -40,6 +43,7 @@ export async function upsertBillMetadataFromCongress(bill: CongressBill) {
       status,
       introducedAt,
       topicTags,
+      topicTagsSource: classification.source,
       breakingAt,
     },
     create: {
@@ -52,6 +56,7 @@ export async function upsertBillMetadataFromCongress(bill: CongressBill) {
       status,
       introducedAt,
       topicTags,
+      topicTagsSource: classification.source,
       fullTextUrl: null,
       breakingAt: null,
     },
@@ -73,21 +78,7 @@ export function parseIntroducedDate(
   introducedDate?: string,
   fallbackActionDate?: string
 ) {
-  if (introducedDate) {
-    const parsed = new Date(introducedDate);
-    if (!Number.isNaN(parsed.getTime())) {
-      return parsed;
-    }
-  }
-
-  if (fallbackActionDate) {
-    const parsedFallback = new Date(fallbackActionDate);
-    if (!Number.isNaN(parsedFallback.getTime())) {
-      return parsedFallback;
-    }
-  }
-
-  return new Date("2000-01-01T00:00:00.000Z");
+  return parseCongressDate(introducedDate, fallbackActionDate);
 }
 
 async function refreshBillImage(
@@ -99,7 +90,7 @@ async function refreshBillImage(
     const image = await fetchBestOpenverseBillImage({ title, topicTags });
     await prisma.bill.update({
       where: { id: billId },
-      data: image ?? getNoImageAttemptMetadata(topicTags[0]?.toLowerCase() ?? null),
+      data: image ?? getNoImageAttemptMetadata(parseTerm(topicTags[0])?.value.toLowerCase() ?? null),
     });
   } catch {}
 }

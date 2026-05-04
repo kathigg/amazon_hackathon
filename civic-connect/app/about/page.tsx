@@ -23,17 +23,17 @@ export default function AboutPage() {
               {
                 step: "1",
                 title: "We fetch live bill data",
-                desc: "Bill metadata, status, and text are pulled daily from the Congress.gov API and ProPublica Congress API.",
+                desc: "Bill metadata, status, actions, and text come from the official Congress.gov API and are refreshed on a scheduled AWS job.",
               },
               {
                 step: "2",
                 title: "AI generates plain-language summaries",
-                desc: "GPT-4o reads each bill and produces a 2–3 sentence summary at an 8th-grade reading level, plus key provisions. The official title is always shown alongside the AI summary.",
+                desc: "Amazon Bedrock generates structured plain-language summaries, key provisions, and practical impact notes in a neutral editorial style. The official bill title always appears alongside the summary.",
               },
               {
                 step: "3",
-                title: "Party positions are sourced from voting records",
-                desc: "Stance cards show how Democrats and Republicans voted on each bill, drawn from ProPublica vote data. We never editorialize.",
+                title: "Auto-Whip tracks where members stand",
+                desc: "Representative position cards combine official statements, public releases, and recorded votes when they exist. Members without enough evidence are shown as no position.",
               },
               {
                 step: "4",
@@ -72,12 +72,12 @@ export default function AboutPage() {
               {" "}— Bill metadata, status, sponsor, and full text
             </li>
             <li>
-              <a href="https://projects.propublica.org/api-docs/congress-api/" target="_blank" rel="noopener noreferrer" className="text-civic-blue hover:underline">ProPublica Congress API</a>
-              {" "}— Vote records and party breakdowns
-            </li>
-            <li>
               <a href="https://developers.google.com/civic-information" target="_blank" rel="noopener noreferrer" className="text-civic-blue hover:underline">Google Civic Information API</a>
               {" "}— Representative lookup by zip code
+            </li>
+            <li>
+              Official House and Senate member websites and public statements
+              {" "}— Representative position evidence where available
             </li>
           </ul>
         </section>

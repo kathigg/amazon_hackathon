@@ -7,7 +7,8 @@ export async function GET() {
     env: {
       hasDatabaseUrl: !!process.env.DATABASE_URL,
       hasCongressKey: !!process.env.CONGRESS_API_KEY,
-      hasGeminiKey: !!process.env.GOOGLE_GEMINI_KEY,
+      hasBedrockModel: !!process.env.AWS_BEDROCK_MODEL,
+      hasSesFromEmail: !!process.env.SES_FROM_EMAIL,
       hasIngestSecret: !!process.env.INGEST_SECRET,
     },
   });

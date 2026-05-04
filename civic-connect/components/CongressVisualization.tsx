@@ -7,9 +7,10 @@ interface Bill {
   stage:
     | "introduced"
     | "committee"
-    | "house_passed"
-    | "senate"
-    | "signed"
+    | "passed_one"
+    | "passed_both"
+    | "president"
+    | "enacted"
     | "vetoed";
 }
 
@@ -36,21 +37,27 @@ const STAGES: Array<{
     tone: "bg-blue-50 text-blue-700",
   },
   {
-    key: "house_passed",
-    label: "Passed House",
-    blurb: "Through the House and headed deeper into the process.",
+    key: "passed_one",
+    label: "Passed One Chamber",
+    blurb: "Through either the House or Senate, but not both yet.",
     tone: "bg-emerald-50 text-emerald-700",
   },
   {
-    key: "senate",
-    label: "In The Senate",
-    blurb: "Now in the Senate or through a Senate vote.",
+    key: "passed_both",
+    label: "Passed Both Chambers",
+    blurb: "Both chambers have acted and the bill is near the finish line.",
     tone: "bg-amber-50 text-amber-700",
   },
   {
-    key: "signed",
-    label: "Signed",
-    blurb: "Finalized and enacted.",
+    key: "president",
+    label: "At The White House",
+    blurb: "Presented to the president for signature or veto.",
+    tone: "bg-blue-50 text-blue-700",
+  },
+  {
+    key: "enacted",
+    label: "Enacted",
+    blurb: "Signed into law.",
     tone: "bg-green-100 text-green-800",
   },
   {

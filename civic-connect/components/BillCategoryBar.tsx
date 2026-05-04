@@ -2,12 +2,23 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { TOPIC_TAGS } from "@/lib/topics";
+import { getActiveTaxonomy } from "@/lib/taxonomy";
+
+const ACTIVE_TAXONOMY = getActiveTaxonomy();
+
+// Show pinned terms first, then everything else in `groups[]` order so the
+// horizontal scroll surfaces the highest-traffic desks immediately.
+const orderedTerms = [
+  ...ACTIVE_TAXONOMY.prioritizedTerms,
+  ...ACTIVE_TAXONOMY.groups.flatMap((g) =>
+    g.terms.filter((t) => !ACTIVE_TAXONOMY.prioritizedTerms.includes(t))
+  ),
+];
 
 const categoryItems = [
   { label: "Hot", href: "/bills?sort=hot", type: "sort" as const, value: "hot" },
   { label: "Latest", href: "/bills", type: "sort" as const, value: "latest" },
-  ...TOPIC_TAGS.map((topic) => ({
+  ...orderedTerms.map((topic) => ({
     label: topic,
     href: `/bills?topic=${encodeURIComponent(topic)}`,
     type: "topic" as const,

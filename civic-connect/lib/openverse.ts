@@ -1,5 +1,5 @@
 import { isSummaryPlaceholder } from "./bill-summary";
-import { normalizeTopicTags } from "./topics";
+import { getActiveTaxonomy, parseTerm } from "./taxonomy";
 
 const OPENVERSE_IMAGES_ENDPOINT = "https://api.openverse.org/v1/images/";
 const OPENVERSE_USER_AGENT = "CivicConnect/0.1 (Openverse bill imagery)";
@@ -78,8 +78,8 @@ const ISSUE_QUERY_OVERRIDES: Array<{
       "va health",
     ],
     queries: [
-      "veterans services american flag",
-      "military veteran memorial",
+      "veterans memorial american flag",
+      "veterans affairs building exterior",
     ],
   },
   {
@@ -108,7 +108,7 @@ const ISSUE_QUERY_OVERRIDES: Array<{
   },
   {
     matches: ["civil rights", "equality", "discrimination", "voting rights", "justice"],
-    queries: ["voting rights ballot box", "justice courthouse exterior"],
+    queries: ["voting rights ballot box", "courthouse exterior justice building"],
   },
   {
     matches: ["economy", "tax", "budget", "trade", "small business", "inflation"],
@@ -124,28 +124,20 @@ const ISSUE_QUERY_OVERRIDES: Array<{
   },
   {
     matches: ["foreign", "diplomatic", "treaty", "sanction", "international"],
-    queries: ["international diplomacy flags", "global diplomacy meeting"],
+    queries: ["international diplomacy flags", "conference table diplomatic flags"],
   },
   {
     matches: ["defense", "military", "national security", "army", "navy", "air force"],
-    queries: ["military service members", "national security military"],
+    queries: ["naval ship national security", "military aircraft defense"],
   },
 ] as const;
 
-const TOPIC_QUERY_FALLBACKS: Record<string, string[]> = {
-  Healthcare: ["healthcare hospital medicine"],
-  Economy: ["economy financial district"],
-  Environment: ["environment conservation landscape"],
-  Education: ["students classroom school"],
-  Immigration: ["immigration passport border crossing"],
-  Defense: ["military service members"],
-  Infrastructure: ["bridge infrastructure highway"],
-  "Civil Rights": ["civil rights march protest"],
-  Technology: ["technology data network"],
-  Housing: ["affordable housing apartment buildings"],
-  Agriculture: ["farm fields agriculture"],
-  "Foreign Policy": ["international diplomacy flags"],
-};
+function imageQueriesForTopic(topic: string): readonly string[] {
+  const parsed = parseTerm(topic);
+  if (!parsed) return [];
+  const def = getActiveTaxonomy();
+  return def.imageQueries[parsed.value] ?? [];
+}
 
 export async function fetchBestOpenverseBillImage({
   title,
@@ -237,7 +229,6 @@ async function searchBestImageForQuery(query: string): Promise<OpenverseImage | 
 
 function buildOpenverseQueries(title: string, topicTags: string[], summary?: string) {
   const normalizedTitle = title.toLowerCase();
-  const normalizedTopicTags = normalizeTopicTags(topicTags, title);
   const cleanedSummary =
     summary && !isSummaryPlaceholder(summary) ? summary : undefined;
   const queries: string[] = [];
@@ -265,8 +256,8 @@ function buildOpenverseQueries(title: string, topicTags: string[], summary?: str
   }
 
   // Priority 3: Use topic tags
-  for (const topic of normalizedTopicTags) {
-    queries.push(...(TOPIC_QUERY_FALLBACKS[topic] ?? []));
+  for (const topic of topicTags) {
+    queries.push(...imageQueriesForTopic(topic));
   }
 
   // Priority 4: Extract keywords from title (least reliable due to abbreviations)
@@ -285,8 +276,11 @@ function buildOpenverseQueries(title: string, topicTags: string[], summary?: str
       .slice(0, 4)
       .join(" ");
 
-    if (titleKeywords && normalizedTopicTags[0]) {
-      queries.push(`${normalizedTopicTags[0].toLowerCase()} ${titleKeywords}`);
+    const primaryTopic = topicTags[0]
+      ? parseTerm(topicTags[0])?.value.toLowerCase()
+      : undefined;
+    if (primaryTopic) {
+      queries.push(`${primaryTopic} ${titleKeywords}`);
     }
   }
 
@@ -345,14 +339,14 @@ function scoreImage(image: OpenverseImage) {
   }
 
   if (
-    /\b(portrait|man|woman|boy|girl|people|person|selfie|headshot|survivor|child|children|family|doctor|nurse)\b/.test(
+    /\b(portrait|man|woman|boy|girl|people|person|selfie|headshot|survivor|child|children|family|doctor|nurse|group|crowd)\b/.test(
       normalizedTitle
     )
   ) {
-    score -= 6;
+    score -= 8;
   }
 
-  if (/\b(building|landscape|bridge|document|classroom|courthouse|hospital|office|street|capitol|forest)\b/.test(normalizedTitle)) {
+  if (/\b(building|landscape|bridge|document|classroom|courthouse|hospital|office|street|capitol|forest|ship|aircraft|flag|map|ballot)\b/.test(normalizedTitle)) {
     score += 2;
   }
 

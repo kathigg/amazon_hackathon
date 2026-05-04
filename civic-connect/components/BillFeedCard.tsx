@@ -3,6 +3,7 @@
 import Link from "next/link";
 import BillIssueVisual from "@/components/BillIssueVisual";
 import { getSummaryPreview } from "@/lib/bill-summary";
+import { formatBillShortDate } from "@/lib/bill-dates";
 import { formatTopicTag } from "@/lib/topics";
 
 interface BillFeedCardProps {
@@ -12,7 +13,7 @@ interface BillFeedCardProps {
   status: string;
   sponsor: string;
   topicTags: string[];
-  introducedAt: Date;
+  introducedAt: Date | string;
   viewCount: number;
   isPersonalized?: boolean;
   imageThumbnailUrl?: string | null;
@@ -40,7 +41,6 @@ export default function BillFeedCard({
   imageLicense,
   imageLicenseVersion,
 }: BillFeedCardProps) {
-  const timeAgo = getTimeAgo(introducedAt);
   const primaryTopic = topicTags[0] ? formatTopicTag(topicTags[0]) : "General";
   const summaryPreview = getSummaryPreview(plainLanguage);
 
@@ -54,7 +54,7 @@ export default function BillFeedCard({
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
             <span>{primaryTopic}</span>
             <span>{id.toUpperCase()}</span>
-            <span>{timeAgo}</span>
+            <span>{formatBillShortDate(introducedAt)}</span>
             <span>{viewCount.toLocaleString()} readers</span>
             {isPersonalized && <span className="text-civic-red">For You</span>}
           </div>
@@ -111,15 +111,4 @@ export default function BillFeedCard({
       </div>
     </Link>
   );
-}
-
-function getTimeAgo(date: Date): string {
-  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
-
-  if (seconds < 60) return "just now";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-  if (seconds < 2592000) return `${Math.floor(seconds / 604800)}w ago`;
-  return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }

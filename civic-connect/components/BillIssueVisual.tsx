@@ -74,13 +74,24 @@ export default function BillIssueVisual({
           )}
         </>
       ) : (
-        <div className="flex h-full items-end p-4">
-          <div>
-            <div className="mb-2 inline-flex rounded-full bg-white/85 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-700">
-              Openverse
+        <div className="relative h-full overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(22,59,112,0.16),transparent_34%),linear-gradient(135deg,rgba(16,36,62,0.04),rgba(22,59,112,0.14))]" />
+          <div className="absolute left-4 top-4 inline-flex rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+            Policy Graphic
+          </div>
+          <div className="absolute bottom-4 left-4 right-4">
+            <div className="mb-3 flex items-end gap-2">
+              <span className="h-8 w-2 rounded-full bg-navy/25" />
+              <span className="h-12 w-2 rounded-full bg-navy/45" />
+              <span className="h-16 w-2 rounded-full bg-navy/70" />
+              <span className="h-10 w-2 rounded-full bg-civic-blue/50" />
             </div>
             <p className="text-sm font-semibold leading-tight text-slate-700">
-              No matching image yet
+              Editorial placeholder graphic
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              We use general issue imagery rather than portraits when no bill art
+              is available.
             </p>
           </div>
         </div>

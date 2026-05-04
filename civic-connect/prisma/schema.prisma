@@ -17,7 +17,7 @@ model Bill {
   status       String
   introducedAt DateTime
   topicTags    String[]
-  topicTagsSource String?
+  topicTagsSource String?  // "api" | "llm" | "keyword" | "none" | null (legacy)
   fullTextUrl  String?
   imageUrl     String?
   imageThumbnailUrl String?
@@ -117,9 +117,9 @@ model Representative {
   state       String
   district    String?  // For House members
   websiteUrl  String?
-  photoUrl    String?
   phone       String?
   officeAddress String?
+  photoUrl    String?
   lastScraped DateTime?
   createdAt   DateTime @default(now())
   
@@ -216,8 +216,20 @@ model BillView {
   timeSpent       Int      @default(0)  // seconds
   scrollDepth     Int      @default(0)  // percentage
   viewedAt        DateTime @default(now())
-  
+
   @@index([userId])
   @@index([billId])
   @@index([viewedAt])
+}
+
+model ZipDistrict {
+  id        String   @id @default(cuid())
+  zip       String   // 5-digit ZCTA
+  stateCode String   // "DE", "CA"
+  stateName String   // "Delaware", "California"
+  district  String   // "1", "10"; "0" for at-large
+  createdAt DateTime @default(now())
+
+  @@unique([zip, stateCode, district])
+  @@index([zip])
 }

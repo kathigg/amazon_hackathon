@@ -188,6 +188,7 @@ async function sendDigestToUser({
   digestKind: DigestKind;
   localDateKey: string;
 }) {
+  const baseUrl = getAppBaseUrl();
   const limit = 12;
   const billIds = await getPersonalizedBills(userId, limit);
 
@@ -239,9 +240,7 @@ async function sendDigestToUser({
         bill,
         organization: orgs[0] ?? null,
         contactRep,
-        contactRepUrl: contactRep?.websiteUrl
-          ? `${baseUrl}/bill/${bill.id}/contact`
-          : `${baseUrl}/bill/${bill.id}/contact`,
+        contactRepUrl: `${baseUrl}/bill/${bill.id}/contact`,
       };
     })
   );
@@ -251,7 +250,6 @@ async function sendDigestToUser({
       ? "Bills to watch this week"
       : "Bills you should read today";
 
-  const baseUrl = getAppBaseUrl();
   const heading =
     digestKind === "weekly"
       ? "Bills to watch this week and how you can impact them"

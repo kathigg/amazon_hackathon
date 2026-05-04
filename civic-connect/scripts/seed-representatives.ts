@@ -19,6 +19,9 @@ interface CongressMember {
   district?: string;
   chamber: string;
   websiteUrl: string | null;
+  phone: string | null;
+  officeAddress: string | null;
+  photoUrl: string | null;
 }
 
 async function fetchMembers(): Promise<CongressMember[]> {
@@ -69,6 +72,9 @@ async function fetchMembers(): Promise<CongressMember[]> {
           district: currentTerm?.district?.toString(),
           chamber,
           websiteUrl: memberDetail.officialWebsiteUrl || null,
+          phone: memberDetail.addressInformation?.phoneNumber || null,
+          officeAddress: memberDetail.addressInformation?.officeAddress || null,
+          photoUrl: memberDetail.depiction?.imageUrl || null,
         });
         
         // Rate limiting - be nice to the API
@@ -122,6 +128,9 @@ async function seedRepresentatives() {
             district: member.district,
             chamber: member.chamber,
             websiteUrl: member.websiteUrl,
+            phone: member.phone,
+            officeAddress: member.officeAddress,
+            photoUrl: member.photoUrl,
           },
         });
         updated++;
@@ -136,6 +145,9 @@ async function seedRepresentatives() {
             state: member.state,
             district: member.district,
             websiteUrl: member.websiteUrl,
+            phone: member.phone,
+            officeAddress: member.officeAddress,
+            photoUrl: member.photoUrl,
           },
         });
         created++;

@@ -96,6 +96,10 @@ export default async function RepresentativeStances({
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
             Your Delegation
           </p>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-navy/68">
+            Your saved senators and House members are pinned here first so you
+            can see their likely position before the full chamber view.
+          </p>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {preferred.map((position) => (
               <RepresentativeCard

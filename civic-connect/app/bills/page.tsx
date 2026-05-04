@@ -4,7 +4,14 @@ import { getCurrentUserId } from "@/lib/user-tracking";
 import { getPersonalizedBills } from "@/lib/recommendations";
 import BillFeedCard from "@/components/BillFeedCard";
 import { BillFeedSort, getBillsBySort } from "@/lib/bill-feed";
-import { TOPIC_TAGS, formatTopicTag } from "@/lib/topics";
+import {
+  filterPredicateForTopic,
+  getActiveTaxonomy,
+} from "@/lib/taxonomy";
+import { formatBillShortDate } from "@/lib/bill-dates";
+import { formatTopicTag } from "@/lib/topics";
+
+const ACTIVE_TAXONOMY = getActiveTaxonomy();
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +45,7 @@ async function getBills({
       title: { contains: q, mode: "insensitive" as const },
     }),
     ...(topic && {
-      topicTags: { has: topic },
+      topicTags: { hasSome: filterPredicateForTopic(topic) },
     }),
   };
 
@@ -121,11 +128,15 @@ export default async function BillsPage({
   return (
     <div className="min-h-screen">
       <section className="border-b border-black/10">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 pb-8 pt-5 sm:px-6 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-navy/50">
-                {searchParams.topic ? `${searchParams.topic} Desk` : sort === "hot" ? "Hot Desk" : "Bills Desk"}
+                {searchParams.topic
+                  ? `${searchParams.topic} Desk`
+                  : sort === "hot"
+                    ? "Hot Desk"
+                    : "Bills Desk"}
               </p>
               <h1 className="mt-2 font-display text-5xl leading-none text-navy sm:text-6xl">
                 {title}
@@ -135,11 +146,17 @@ export default async function BillsPage({
               </p>
 
               <form method="GET" className="mt-8 flex flex-col gap-3 sm:flex-row">
-                {searchParams.topic && <input type="hidden" name="topic" value={searchParams.topic} />}
-                {searchParams.sort && <input type="hidden" name="sort" value={searchParams.sort} />}
-                {searchParams.personalized === "true" && !searchParams.q && !searchParams.topic && (
-                  <input type="hidden" name="personalized" value="true" />
+                {searchParams.topic && (
+                  <input type="hidden" name="topic" value={searchParams.topic} />
                 )}
+                {searchParams.sort && (
+                  <input type="hidden" name="sort" value={searchParams.sort} />
+                )}
+                {searchParams.personalized === "true" &&
+                  !searchParams.q &&
+                  !searchParams.topic && (
+                    <input type="hidden" name="personalized" value="true" />
+                  )}
                 <input
                   type="text"
                   name="q"
@@ -177,7 +194,9 @@ export default async function BillsPage({
                     What Our Readers Open Most
                   </p>
                   <p className="mt-3 text-sm leading-7 text-navy/70">
-                    The `Hot` feed blends two signals: what our readers are opening most often and what Congress introduced most recently.
+                    The `Hot` feed blends two signals: what our readers are
+                    opening most often and what Congress introduced most
+                    recently.
                   </p>
                 </div>
 
@@ -186,7 +205,7 @@ export default async function BillsPage({
                     Desks
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {TOPIC_TAGS.slice(0, 6).map((topic) => (
+                    {ACTIVE_TAXONOMY.prioritizedTerms.map((topic) => (
                       <Link
                         key={topic}
                         href={`/bills?topic=${encodeURIComponent(topic)}`}
@@ -196,6 +215,41 @@ export default async function BillsPage({
                       </Link>
                     ))}
                   </div>
+                  <details className="group mt-3">
+                    <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45 hover:text-navy">
+                      Browse all desks{" "}
+                      <span className="inline-block transition-transform group-open:rotate-180">
+                        ▾
+                      </span>
+                    </summary>
+                    <div className="mt-3 space-y-3">
+                      {ACTIVE_TAXONOMY.groups.map((group) => (
+                        <div key={group.label}>
+                          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-navy/40">
+                            {group.label}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {group.terms
+                              .filter(
+                                (topic) =>
+                                  !ACTIVE_TAXONOMY.prioritizedTerms.includes(
+                                    topic
+                                  )
+                              )
+                              .map((topic) => (
+                                <Link
+                                  key={topic}
+                                  href={`/bills?topic=${encodeURIComponent(topic)}`}
+                                  className="border border-black/10 bg-white px-2 py-1 text-[10px] font-medium tracking-wide text-navy/60 transition-colors hover:border-navy hover:text-navy"
+                                >
+                                  {topic}
+                                </Link>
+                              ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
                 </div>
               </div>
             </aside>
@@ -232,7 +286,9 @@ export default async function BillsPage({
             ) : (
               <div className="border border-black/10 bg-white px-8 py-16 text-center">
                 <p className="font-display text-3xl text-navy">No bills found</p>
-                <p className="mt-3 text-sm text-navy/60">Try a different search or return to the latest desk.</p>
+                <p className="mt-3 text-sm text-navy/60">
+                  Try a different search or return to the latest desk.
+                </p>
                 <Link
                   href="/bills"
                   className="mt-6 inline-flex border border-navy px-5 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-navy"
@@ -272,7 +328,9 @@ export default async function BillsPage({
 
           <aside className="border-t border-black/10 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-              {sort === "hot" ? "Fresh From Congress" : "Opened Most By Our Readers"}
+              {sort === "hot"
+                ? "Fresh From Congress"
+                : "Opened Most By Our Readers"}
             </p>
             <div className="mt-4 space-y-4">
               {railBills.map((bill, index) => (
@@ -282,13 +340,17 @@ export default async function BillsPage({
                   className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
                 >
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
-                    {index + 1 < 10 ? `0${index + 1}` : index + 1} · {bill.topicTags[0] ? formatTopicTag(bill.topicTags[0]) : "General"}
+                    {index + 1 < 10 ? `0${index + 1}` : index + 1} ·{" "}
+                    {bill.topicTags[0]
+                      ? formatTopicTag(bill.topicTags[0])
+                      : "General"}
                   </p>
                   <h2 className="mt-2 font-display text-2xl leading-tight text-navy">
                     {bill.title}
                   </h2>
                   <p className="mt-2 text-xs uppercase tracking-[0.2em] text-navy/45">
-                    {formatCompactDate(bill.introducedAt)} · {bill.viewCount.toLocaleString()} readers
+                    {formatBillShortDate(bill.introducedAt)} ·{" "}
+                    {bill.viewCount.toLocaleString()} readers
                   </p>
                 </Link>
               ))}
@@ -344,7 +406,9 @@ function getFeedDescription({
   total: number;
 }) {
   if (q) {
-    return `Matching bill headlines across the 119th Congress. ${total} result${total === 1 ? "" : "s"} found.`;
+    return `Matching bill headlines across the 119th Congress. ${total} result${
+      total === 1 ? "" : "s"
+    } found.`;
   }
 
   if (personalized) {
@@ -383,11 +447,4 @@ function buildBillsHref(params: SearchParams): string {
 
   const query = nextParams.toString();
   return query ? `/bills?${query}` : "/bills";
-}
-
-function formatCompactDate(date: Date) {
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
 }

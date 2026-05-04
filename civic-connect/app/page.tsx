@@ -7,9 +7,12 @@ import BillFeedCard from "@/components/BillFeedCard";
 import BillLookup from "@/components/BillLookup";
 import BillIssueVisual from "@/components/BillIssueVisual";
 import CongressVisualization from "@/components/CongressVisualization";
-import { TOPIC_TAGS } from "@/lib/topics";
 import { getSummaryPreview } from "@/lib/bill-summary";
 import { formatTopicTag } from "@/lib/topics";
+import { getActiveTaxonomy } from "@/lib/taxonomy";
+import { formatBillDate, formatBillShortDate } from "@/lib/bill-dates";
+
+const ACTIVE_TAXONOMY = getActiveTaxonomy();
 
 export const dynamic = "force-dynamic";
 
@@ -50,24 +53,83 @@ async function getBillsForVisualization() {
   }
 }
 
-function classifyBillStage(status: string): "introduced" | "committee" | "house_passed" | "senate" | "signed" | "vetoed" {
+function classifyBillStage(
+  status: string
+):
+  | "introduced"
+  | "committee"
+  | "passed_one"
+  | "passed_both"
+  | "president"
+  | "enacted"
+  | "vetoed" {
   const lower = status.toLowerCase();
-  if (lower.includes("became law") || lower.includes("signed")) return "signed";
+
   if (lower.includes("vetoed")) return "vetoed";
-  if (lower.includes("passed senate") || lower.includes("senate")) return "senate";
-  if (lower.includes("passed house")) return "house_passed";
-  if (lower.includes("committee")) return "committee";
+
+  if (
+    lower.includes("became law") ||
+    lower.includes("signed by president") ||
+    lower.includes("signed into law") ||
+    lower.includes("enacted")
+  ) {
+    return "enacted";
+  }
+
+  if (
+    lower.includes("passed house") &&
+    lower.includes("passed senate")
+  ) {
+    return "passed_both";
+  }
+
+  if (
+    lower.includes("presented to president") ||
+    lower.includes("sent to president")
+  ) {
+    return "president";
+  }
+
+  if (
+    lower.includes("conference") ||
+    lower.includes("resolving differences")
+  ) {
+    return "passed_both";
+  }
+
+  if (
+    lower.includes("passed senate") ||
+    lower.includes("passed house") ||
+    lower.includes("agreed to in senate") ||
+    lower.includes("agreed to in house") ||
+    lower.includes("received in the senate") ||
+    lower.includes("received in the house")
+  ) {
+    return "passed_one";
+  }
+
+  if (
+    lower.includes("committee") ||
+    lower.includes("reported") ||
+    lower.includes("placed on") ||
+    lower.includes("ordered to be reported") ||
+    lower.includes("referred to")
+  ) {
+    return "committee";
+  }
+
   return "introduced";
 }
 
 export default async function HomePage() {
   const currentUser = await getCurrentUser().catch(() => null);
-  const [hotBills, latestBills, personalizedBills, visualizationBills] = await Promise.all([
-    getBillsBySort({ sort: "hot", take: 6 }),
-    getBillsBySort({ sort: "latest", take: 5 }),
-    getPersonalizedFrontPageBills(currentUser?.id),
-    getBillsForVisualization(),
-  ]);
+  const [hotBills, latestBills, personalizedBills, visualizationBills] =
+    await Promise.all([
+      getBillsBySort({ sort: "hot", take: 6 }),
+      getBillsBySort({ sort: "latest", take: 5 }),
+      getPersonalizedFrontPageBills(currentUser?.id),
+      getBillsForVisualization(),
+    ]);
 
   const leadBill = hotBills[0];
   const secondaryBills = hotBills.slice(1, 3);
@@ -103,8 +165,11 @@ export default async function HomePage() {
                       </p>
                       <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-navy/45">
                         <span>{leadBill.id.toUpperCase()}</span>
-                        <span>{formatFullDate(leadBill.introducedAt)}</span>
-                        <span>Opened by {leadBill.viewCount.toLocaleString()} of our readers</span>
+                        <span>{formatBillDate(leadBill.introducedAt)}</span>
+                        <span>
+                          Opened by {leadBill.viewCount.toLocaleString()} of our
+                          readers
+                        </span>
                       </div>
                       <div className="mt-8 overflow-hidden border border-black/10 bg-white">
                         <BillIssueVisual
@@ -135,13 +200,18 @@ export default async function HomePage() {
                           className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
                         >
                           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
-                            {(bill.topicTags[0] ? formatTopicTag(bill.topicTags[0]) : "General")} · opened by {bill.viewCount.toLocaleString()} of our readers
+                            {(bill.topicTags[0]
+                              ? formatTopicTag(bill.topicTags[0])
+                              : "General")}{" "}
+                            · opened by {bill.viewCount.toLocaleString()} of our
+                            readers
                           </p>
                           <h2 className="mt-2 font-display text-3xl leading-tight text-navy">
                             {bill.title}
                           </h2>
-                          <p className="mt-2 text-sm leading-7 text-navy/65 line-clamp-3">
-                            {getSummaryPreview(bill.summary?.plainLanguage) ?? "Open the bill page for the summary, context, and next steps."}
+                          <p className="mt-2 line-clamp-3 text-sm leading-7 text-navy/65">
+                            {getSummaryPreview(bill.summary?.plainLanguage) ??
+                              "Open the bill page for the summary, context, and next steps."}
                           </p>
                         </Link>
                       ))}
@@ -161,7 +231,8 @@ export default async function HomePage() {
                         className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
                       >
                         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
-                          {index + 1 < 10 ? `0${index + 1}` : index + 1} · {formatCompactDate(bill.introducedAt)}
+                          {index + 1 < 10 ? `0${index + 1}` : index + 1} ·{" "}
+                          {formatBillShortDate(bill.introducedAt)}
                         </p>
                         <h2 className="mt-2 font-display text-2xl leading-tight text-navy">
                           {bill.title}
@@ -185,7 +256,9 @@ export default async function HomePage() {
                     Search a bill by name or number
                   </h2>
                   <p className="mt-3 text-sm leading-7 text-navy/68">
-                    Drop in a bill ID like <span className="font-semibold">hr-1-119</span> or a keyword and CivicConnect will take you straight to the filing.
+                    Drop in a bill ID like{" "}
+                    <span className="font-semibold">hr-1-119</span> or a keyword
+                    and CivicConnect will take you straight to the filing.
                   </p>
                   <div className="mt-6">
                     <BillLookup />
@@ -213,7 +286,9 @@ export default async function HomePage() {
                             className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
                           >
                             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
-                              {bill.topicTags[0] ? formatTopicTag(bill.topicTags[0]) : "General"}
+                              {bill.topicTags[0]
+                                ? formatTopicTag(bill.topicTags[0])
+                                : "General"}
                             </p>
                             <h3 className="mt-2 font-display text-2xl leading-tight text-navy">
                               {bill.title}
@@ -228,9 +303,9 @@ export default async function HomePage() {
                         Fine-tune what lands in For You
                       </h2>
                       <p className="mt-3 text-sm leading-7 text-navy/68">
-                        Update your saved issues to give the recommendation feed a
-                        cleaner starting point before your reading history takes
-                        over.
+                        Update your saved issues to give the recommendation feed
+                        a cleaner starting point before your reading history
+                        takes over.
                       </p>
                       <Link
                         href="/account"
@@ -245,7 +320,9 @@ export default async function HomePage() {
                         Create a quick account
                       </h2>
                       <p className="mt-3 text-sm leading-7 text-navy/68">
-                        Add your email, pick your policy areas, choose your briefing schedule, and tell us which senators or House members to surface first.
+                        Add your email, pick your policy areas, choose your
+                        briefing schedule, and tell us which senators or House
+                        members to surface first.
                       </p>
                       <Link
                         href="/account"
@@ -264,15 +341,24 @@ export default async function HomePage() {
                   <h2 className="mt-3 font-display text-3xl text-navy">
                     Track a policy beat
                   </h2>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {TOPIC_TAGS.map((topic) => (
-                      <Link
-                        key={topic}
-                        href={`/bills?topic=${encodeURIComponent(topic)}`}
-                        className="border border-black/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-navy/70 transition-colors hover:border-navy hover:text-navy"
-                      >
-                        {topic}
-                      </Link>
+                  <div className="mt-5 space-y-4">
+                    {ACTIVE_TAXONOMY.groups.map((group) => (
+                      <div key={group.label}>
+                        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-navy/40">
+                          {group.label}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {group.terms.map((topic) => (
+                            <Link
+                              key={topic}
+                              href={`/bills?topic=${encodeURIComponent(topic)}`}
+                              className="border border-black/10 px-2.5 py-1.5 text-[11px] font-medium tracking-wide text-navy/70 transition-colors hover:border-navy hover:text-navy"
+                            >
+                              {topic}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -286,7 +372,9 @@ export default async function HomePage() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
                   Most Read
                 </p>
-                <h2 className="mt-2 font-display text-4xl text-navy">Bills driving attention now</h2>
+                <h2 className="mt-2 font-display text-4xl text-navy">
+                  Bills driving attention now
+                </h2>
               </div>
               <Link
                 href="/bills?sort=hot"
@@ -323,7 +411,8 @@ export default async function HomePage() {
         <section className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6">
           <h1 className="font-display text-5xl text-navy">No bills loaded yet</h1>
           <p className="mt-4 text-base text-navy/70">
-            Use the bill lookup to fetch one on demand, or run the ingestion script to build the front page.
+            Use the bill lookup to fetch one on demand, or run the ingestion
+            script to build the front page.
           </p>
           <div className="mx-auto mt-8 max-w-xl">
             <BillLookup />
@@ -338,10 +427,13 @@ export default async function HomePage() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
                 Process Tracker
               </p>
-              <h2 className="mt-2 font-display text-4xl text-navy">Bills in Motion</h2>
+              <h2 className="mt-2 font-display text-4xl text-navy">
+                Bills in Motion
+              </h2>
             </div>
             <p className="max-w-xl text-sm leading-7 text-navy/65">
-              A live view of how recently loaded bills are moving through the legislative process.
+              A live view of how recently loaded bills are moving through the
+              legislative process.
             </p>
           </div>
           <CongressVisualization bills={visualizationBills} />
@@ -349,19 +441,4 @@ export default async function HomePage() {
       </section>
     </div>
   );
-}
-
-function formatCompactDate(date: Date) {
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatFullDate(date: Date) {
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
 }
