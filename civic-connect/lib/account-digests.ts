@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { getPersonalizedBills } from "./recommendations";
+import { ensureAccountSchema } from "./account-schema";
 import {
   getLocalTimeParts,
   isValidTimeZone,
@@ -18,6 +19,8 @@ import { formatTopicTag } from "./topics";
 type DigestKind = "daily" | "weekly" | "onboarding";
 
 export async function dispatchDueDigestEmails(now = new Date()) {
+  await ensureAccountSchema();
+
   const users = await prisma.user.findMany({
     where: {
       email: {

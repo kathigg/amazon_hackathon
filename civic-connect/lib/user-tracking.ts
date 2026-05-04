@@ -11,6 +11,7 @@ import {
   type EmailSubscription,
 } from "./email-preferences";
 import { sendWelcomeEmail } from "./email";
+import { ensureAccountSchema } from "./account-schema";
 
 const USER_COOKIE_NAME = "civic_user_id";
 const SESSION_COOKIE_NAME = "civic_session_id";
@@ -50,6 +51,8 @@ function clearCookie(name: string) {
 }
 
 async function findUserById(userId: string) {
+  await ensureAccountSchema();
+
   return prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -140,6 +143,8 @@ export async function saveAccountProfile({
   zipCode?: string;
   preferredRepBioguideIds?: string[];
 }) {
+  await ensureAccountSchema();
+
   const normalizedEmail = normalizeEmail(email);
   const selections = sanitizeInterestSelections(interestSelections);
   const subscriptions = sanitizeEmailSubscriptions(emailSubscriptions);
@@ -215,6 +220,8 @@ export async function saveAccountProfile({
 }
 
 export async function loginWithEmail(email: string) {
+  await ensureAccountSchema();
+
   const normalizedEmail = normalizeEmail(email);
   const user = await prisma.user.findUnique({
     where: { email: normalizedEmail },
@@ -244,6 +251,8 @@ export async function saveUserPreferences({
   zipCode?: string;
   preferredRepBioguideIds?: string[];
 }) {
+  await ensureAccountSchema();
+
   const userId = await getOrCreateUserId();
   const sanitizedZipCode = zipCode?.trim() || undefined;
   const sanitizedPreferredRepIds = Array.from(
