@@ -4,7 +4,7 @@ import { getCurrentUserId } from "@/lib/user-tracking";
 import { getPersonalizedBills } from "@/lib/recommendations";
 import BillFeedCard from "@/components/BillFeedCard";
 import { BillFeedSort, getBillsBySort } from "@/lib/bill-feed";
-import { TOPIC_TAGS } from "@/lib/topics";
+import { TOPIC_TAGS, formatTopicTag } from "@/lib/topics";
 
 export const dynamic = "force-dynamic";
 
@@ -174,10 +174,10 @@ export default async function BillsPage({
 
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-                    How Hot Works
+                    What Our Readers Open Most
                   </p>
                   <p className="mt-3 text-sm leading-7 text-navy/70">
-                    The `Hot` feed blends two signals: what readers are opening most often and what Congress introduced most recently.
+                    The `Hot` feed blends two signals: what our readers are opening most often and what Congress introduced most recently.
                   </p>
                 </div>
 
@@ -272,7 +272,7 @@ export default async function BillsPage({
 
           <aside className="border-t border-black/10 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-              {sort === "hot" ? "Fresh From Congress" : "Most Read Right Now"}
+              {sort === "hot" ? "Fresh From Congress" : "Opened Most By Our Readers"}
             </p>
             <div className="mt-4 space-y-4">
               {railBills.map((bill, index) => (
@@ -282,7 +282,7 @@ export default async function BillsPage({
                   className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
                 >
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
-                    {index + 1 < 10 ? `0${index + 1}` : index + 1} · {bill.topicTags[0] ?? "General"}
+                    {index + 1 < 10 ? `0${index + 1}` : index + 1} · {bill.topicTags[0] ? formatTopicTag(bill.topicTags[0]) : "General"}
                   </p>
                   <h2 className="mt-2 font-display text-2xl leading-tight text-navy">
                     {bill.title}
@@ -348,7 +348,7 @@ function getFeedDescription({
   }
 
   if (personalized) {
-    return "A reader-specific briefing assembled from the subjects you spend the most time with.";
+    return "A briefing assembled around the subjects you follow and the bills our readers are returning to most.";
   }
 
   if (topic) {
@@ -356,7 +356,7 @@ function getFeedDescription({
   }
 
   if (sort === "hot") {
-    return "The most talked-about bills right now, weighted by readership and recency.";
+    return "The bills our readers are opening most often right now, weighted with recency so the feed stays current.";
   }
 
   return `${total} bill${total === 1 ? "" : "s"} from the 119th Congress, led by the newest arrivals from Capitol Hill.`;

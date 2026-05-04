@@ -1,7 +1,11 @@
 import { prisma } from "../prisma";
 
-export const DEFAULT_REPRESENTATIVES_TO_SCRAPE = 50;
-export const DEFAULT_RECENT_BILLS_TO_ANALYZE = 20;
+export const DEFAULT_REPRESENTATIVES_TO_SCRAPE = Number(
+  process.env.REPRESENTATIVE_SCRAPE_LIMIT ?? 535
+);
+export const DEFAULT_RECENT_BILLS_TO_ANALYZE = Number(
+  process.env.RECENT_BILL_ANALYSIS_LIMIT ?? 20
+);
 
 export interface RepresentativeScrapeTarget {
   id: string;

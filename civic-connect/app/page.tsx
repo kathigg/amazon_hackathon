@@ -8,6 +8,8 @@ import BillLookup from "@/components/BillLookup";
 import BillIssueVisual from "@/components/BillIssueVisual";
 import CongressVisualization from "@/components/CongressVisualization";
 import { TOPIC_TAGS } from "@/lib/topics";
+import { getSummaryPreview } from "@/lib/bill-summary";
+import { formatTopicTag } from "@/lib/topics";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +72,7 @@ export default async function HomePage() {
   const leadBill = hotBills[0];
   const secondaryBills = hotBills.slice(1, 3);
   const feedBills = hotBills.slice(0, 4);
+  const leadSummary = getSummaryPreview(leadBill?.summary?.plainLanguage);
 
   return (
     <div className="min-h-screen">
@@ -95,13 +98,13 @@ export default async function HomePage() {
                         {leadBill.title}
                       </h1>
                       <p className="mt-5 max-w-3xl text-base leading-8 text-navy/72">
-                        {leadBill.summary?.plainLanguage ??
+                        {leadSummary ??
                           "Read the latest plain-language analysis, party positions, and action steps for this federal bill."}
                       </p>
                       <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-navy/45">
                         <span>{leadBill.id.toUpperCase()}</span>
                         <span>{formatFullDate(leadBill.introducedAt)}</span>
-                        <span>{leadBill.viewCount.toLocaleString()} readers</span>
+                        <span>Opened by {leadBill.viewCount.toLocaleString()} of our readers</span>
                       </div>
                       <div className="mt-8 overflow-hidden border border-black/10 bg-white">
                         <BillIssueVisual
@@ -132,13 +135,13 @@ export default async function HomePage() {
                           className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
                         >
                           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
-                            {bill.topicTags[0] ?? "General"} · {bill.viewCount.toLocaleString()} readers
+                            {(bill.topicTags[0] ? formatTopicTag(bill.topicTags[0]) : "General")} · opened by {bill.viewCount.toLocaleString()} of our readers
                           </p>
                           <h2 className="mt-2 font-display text-3xl leading-tight text-navy">
                             {bill.title}
                           </h2>
                           <p className="mt-2 text-sm leading-7 text-navy/65 line-clamp-3">
-                            {bill.summary?.plainLanguage ?? "Open the bill page for the summary, context, and next steps."}
+                            {getSummaryPreview(bill.summary?.plainLanguage) ?? "Open the bill page for the summary, context, and next steps."}
                           </p>
                         </Link>
                       ))}
@@ -210,7 +213,7 @@ export default async function HomePage() {
                             className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
                           >
                             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
-                              {bill.topicTags[0] ?? "General"}
+                              {bill.topicTags[0] ? formatTopicTag(bill.topicTags[0]) : "General"}
                             </p>
                             <h3 className="mt-2 font-display text-2xl leading-tight text-navy">
                               {bill.title}
@@ -242,9 +245,7 @@ export default async function HomePage() {
                         Create a quick account
                       </h2>
                       <p className="mt-3 text-sm leading-7 text-navy/68">
-                        Add your email, pick at least one policy area, and
-                        CivicConnect will keep a saved desk ready for you on
-                        future visits.
+                        Add your email, pick your policy areas, choose your briefing schedule, and tell us which senators or House members to surface first.
                       </p>
                       <Link
                         href="/account"

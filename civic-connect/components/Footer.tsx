@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CivicConnectMark from "@/components/CivicConnectMark";
 
 export default function Footer() {
   return (
@@ -6,11 +7,14 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
           <div>
-            <div className="mb-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-                The CivicConnect Record
-              </p>
-              <span className="font-display text-4xl leading-none text-navy">CivicConnect</span>
+            <div className="mb-4 flex items-center gap-3">
+              <CivicConnectMark />
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+                  Latest legislation, decoded.
+                </p>
+                <span className="font-display text-4xl leading-none text-navy">CivicConnect</span>
+              </div>
             </div>
             <p className="text-sm leading-7">
               Making U.S. federal legislation accessible to every American through AI-powered plain-language summaries.

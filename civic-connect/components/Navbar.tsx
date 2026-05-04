@@ -1,10 +1,10 @@
 "use client";
 import Link from "next/link";
-import Image from "next/image";
 import { Suspense, useState } from "react";
 import { Menu, X } from "lucide-react";
 import BillCategoryBar from "@/components/BillCategoryBar";
 import BreakingBanner from "@/components/BreakingBanner";
+import CivicConnectMark from "@/components/CivicConnectMark";
 
 interface NavbarProps {
   accountEmail?: string | null;
@@ -18,7 +18,10 @@ export default function Navbar({ accountEmail }: NavbarProps) {
     <header className="border-b border-black/10 bg-[#f6f1e7] text-navy">
       <div className="border-b border-black/10">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.28em] text-navy/55 sm:px-6 lg:px-8">
-          <span>Coverage of the 119th Congress</span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+            Coverage of the 119th Congress
+          </span>
           <div className="hidden items-center gap-6 md:flex">
             <Link href="/bills" className="hover:text-navy">
               Latest Bills
@@ -44,13 +47,7 @@ export default function Navbar({ accountEmail }: NavbarProps) {
               {open ? <X size={18} /> : <Menu size={18} />}
             </button>
             <Link href="/bills" className="hidden items-center gap-3 md:flex">
-              <Image
-                src="/squirrel-logo.png"
-                alt="CivicConnect logo"
-                width={36}
-                height={36}
-                className="rounded-sm border border-black/10 bg-white p-1"
-              />
+              <CivicConnectMark className="h-10 w-10" />
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-navy/50">
                   Congress Desk
@@ -62,7 +59,7 @@ export default function Navbar({ accountEmail }: NavbarProps) {
 
           <Link href="/" className="justify-self-center text-center">
             <span className="block text-[10px] font-semibold uppercase tracking-[0.38em] text-navy/45">
-              The CivicConnect Record
+              Latest legislation, decoded.
             </span>
             <span className="block font-display text-[2.65rem] leading-none text-navy sm:text-[3.6rem]">
               CivicConnect
@@ -70,9 +67,6 @@ export default function Navbar({ accountEmail }: NavbarProps) {
           </Link>
 
           <div className="hidden items-center justify-end gap-6 md:flex">
-            <Link href="/" className="text-sm font-medium text-navy/75 transition-colors hover:text-navy">
-              Home
-            </Link>
             <Link href="/bills" className="text-sm font-medium text-navy/75 transition-colors hover:text-navy">
               Bills
             </Link>
@@ -93,9 +87,6 @@ export default function Navbar({ accountEmail }: NavbarProps) {
 
         {open && (
           <div className="mt-4 flex flex-col gap-3 border-t border-black/10 pt-4 md:hidden">
-            <Link href="/" className="text-sm font-medium text-navy/80" onClick={() => setOpen(false)}>
-              Home
-            </Link>
             <Link href="/bills" className="text-sm font-medium text-navy/80" onClick={() => setOpen(false)}>
               Bills
             </Link>

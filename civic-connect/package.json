@@ -21,6 +21,7 @@
     "@ai-sdk/google": "^3.0.52",
     "@ai-sdk/openai": "^3.0.47",
     "@aws-sdk/client-bedrock-runtime": "^3.1039.0",
+    "@aws-sdk/client-sesv2": "^3.1041.0",
     "@google/generative-ai": "^0.24.1",
     "@lottiefiles/react-lottie-player": "^3.6.0",
     "@prisma/client": "^5.14.0",

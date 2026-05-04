@@ -17,6 +17,7 @@ model Bill {
   status       String
   introducedAt DateTime
   topicTags    String[]
+  topicTagsSource String?
   fullTextUrl  String?
   imageUrl     String?
   imageThumbnailUrl String?
@@ -116,6 +117,9 @@ model Representative {
   state       String
   district    String?  // For House members
   websiteUrl  String?
+  photoUrl    String?
+  phone       String?
+  officeAddress String?
   lastScraped DateTime?
   createdAt   DateTime @default(now())
   
@@ -165,12 +169,31 @@ model User {
   email           String?  @unique
   cookieId        String   @unique
   interestSelections String[] @default([])
+  emailSubscriptions String[] @default(["weekly"])
   topicWeights    Json     @default("{}")  // {"Healthcare": 5, "Education": 3}
+  timezone        String?
+  zipCode         String?
+  preferredRepBioguideIds String[] @default([])
+  welcomeEmailSentAt DateTime?
+  onboardingDigestSentAt DateTime?
   lastSeen        DateTime @default(now())
   createdAt       DateTime @default(now())
   
   sessions        Session[]
   billViews       BillView[]
+  emailDigests    EmailDigestLog[]
+}
+
+model EmailDigestLog {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  kind         String
+  localDateKey String
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@unique([userId, kind, localDateKey])
 }
 
 model Session {

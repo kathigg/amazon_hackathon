@@ -6,9 +6,10 @@ import { prisma } from "./prisma";
 import { fetchBillText, fetchCosponsors } from "./congress";
 import { summarizeBill } from "./summarize";
 import { preprocessBillText } from "./bill-text";
-import { inferTopics } from "./topics";
+import { inferTopics, normalizeTopicTags } from "./topics";
 import { fetchBillVotes } from "./votes";
 import { fetchBestOpenverseBillImage, getNoImageAttemptMetadata } from "./openverse";
+import { parseIntroducedDate } from "./bill-ingestion";
 
 const BASE = "https://api.congress.gov/v3";
 function getCongressApiKey() {
@@ -89,7 +90,7 @@ export async function getBillOrFetch(billId: string) {
   const bill = data.bill;
   if (!bill) return null;
 
-  const topicTags = inferTopics(bill.title ?? "");
+  const topicTags = normalizeTopicTags(inferTopics(bill.title ?? ""), bill.title ?? "");
   const s = bill.sponsors?.[0];
   const sponsor = s
     ? (s.fullName ?? (`${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || "Unknown"))
@@ -105,7 +106,10 @@ export async function getBillOrFetch(billId: string) {
       title: bill.title ?? billId,
       sponsor,
       status,
-      introducedAt: new Date(bill.introducedDate ?? Date.now()),
+      introducedAt: parseIntroducedDate(
+        bill.introducedDate,
+        bill.latestAction?.actionDate
+      ),
       topicTags,
       fullTextUrl: null,
       imageFetchedAt: null,

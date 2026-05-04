@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runMetadataIngest } from "@/lib/jobs/run-ingest";
 
-// Metadata-only ingest — fast enough to fit in Vercel's 60s cron limit.
+// Metadata-only ingest — kept lightweight so scheduled runs finish quickly.
 // Summaries, votes, and cosponsors are fetched on-demand when a user visits a bill.
 export const maxDuration = 60;
 

@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { mergeTopicWeights } from "./account-interests";
+import { normalizeTopicTags } from "./topics";
 
 interface UserPreferences {
   topicWeights: Record<string, number>;
@@ -105,7 +106,7 @@ async function getTopicBasedBills(
   // Score bills based on topic match
   const scoredBills = bills.map((bill) => {
     let score = 0;
-    for (const topic of bill.topicTags) {
+    for (const topic of normalizeTopicTags(bill.topicTags, bill.title)) {
       score += topicWeights[topic] || 0;
     }
     return { ...bill, score };
@@ -185,8 +186,10 @@ export async function getOpposingBill(
   let opposingBill: string | null = null;
 
   for (const bill of bills) {
-    const overlap = bill.topicTags.filter((t) =>
-      currentBillTopics.includes(t)
+    const normalizedBillTopics = normalizeTopicTags(bill.topicTags, bill.title);
+    const normalizedCurrentTopics = normalizeTopicTags(currentBillTopics);
+    const overlap = normalizedBillTopics.filter((t) =>
+      normalizedCurrentTopics.includes(t)
     ).length;
     if (overlap < minOverlap) {
       minOverlap = overlap;

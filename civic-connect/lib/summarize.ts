@@ -23,7 +23,7 @@ const summarySchema = z.object({
   plainLanguage: z
     .string()
     .describe(
-      "3-4 sentence plain English overview of what this bill does, starting with 'This bill would...' or 'This bill...'"
+      "4-5 sentence plain English overview of what this bill does, why it matters, and who it affects, starting with 'This bill would...' or 'This bill...'"
     ),
   keyProvisions: z
     .array(z.string())
@@ -33,7 +33,7 @@ const summarySchema = z.object({
   whyItMatters: z
     .string()
     .describe(
-      "2-3 sentences on practical impact for everyday Americans, stated neutrally"
+      "2-3 sentences on practical impact for everyday Americans, stated neutrally, explicitly naming who is affected"
     ),
 });
 
@@ -91,15 +91,15 @@ function buildPrompt(title: string, billText: string): string {
 Summarize this U.S. Congressional bill. Follow these rules strictly:
 
 STYLE:
-- Write at an 8th-grade reading level using everyday language
-- Be conversational but informative — like explaining to a neighbor what this bill would do
+- Write in clear, modern news language at roughly a New York Times reading level
+- Be direct and readable, but slightly formal — like a concise newspaper explainer, not a casual conversation
 - Use action verbs: "This bill would require...", "It prohibits...", "It establishes..."
 - Never editorialize, express opinions, or use politically charged framing
 
 STRUCTURE:
-- "plainLanguage": A 3-4 sentence overview of what this bill does and why it was introduced. Start with "This bill would..." or "This bill..." — explain the real-world effect, not the legal mechanics.
+- "plainLanguage": A 4-5 sentence overview of what this bill does, why it matters, and who it impacts. Start with "This bill would..." or "This bill..." — explain the real-world effect, not the legal mechanics.
 - "keyProvisions": 3-5 bullet points covering the major sections. Each provision should be one clear sentence starting with an action verb. Walk through the bill's major parts, not just the first section.
-- "whyItMatters": 2-3 sentences on the practical impact for everyday Americans. Who does this affect? What changes in practice? State neutrally without political framing.
+- "whyItMatters": 2-3 sentences on the practical impact for everyday Americans. Explicitly answer: Why does this matter? Who does it affect? What changes in practice? State neutrally without political framing.
 
 IMPORTANT:
 - When the bill says "Section X is amended by inserting Y", explain what that CHANGE means in practice — do not quote the amendment instruction.

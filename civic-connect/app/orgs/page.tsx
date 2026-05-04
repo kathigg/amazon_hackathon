@@ -5,9 +5,20 @@ import OrgCard from "@/components/OrgCard";
 
 export const dynamic = "force-dynamic";
 
-async function getOrgs(topic?: string) {
+async function getOrgs(topic?: string, q?: string) {
   return prisma.organization.findMany({
-    where: topic ? { topicTags: { has: topic } } : undefined,
+    where: {
+      ...(topic ? { topicTags: { has: topic } } : {}),
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { mission: { contains: q, mode: "insensitive" } },
+              { location: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    },
     include: {
       events: {
         where: { date: { gte: new Date() } },
@@ -22,9 +33,9 @@ async function getOrgs(topic?: string) {
 export default async function OrgsPage({
   searchParams,
 }: {
-  searchParams: { topic?: string };
+  searchParams: { topic?: string; q?: string };
 }) {
-  const orgs = await getOrgs(searchParams.topic);
+  const orgs = await getOrgs(searchParams.topic, searchParams.q);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -38,10 +49,29 @@ export default async function OrgsPage({
         </Link>
       </div>
 
+      <form method="GET" className="flex flex-col gap-3 mb-8 sm:flex-row">
+        {searchParams.topic && (
+          <input type="hidden" name="topic" value={searchParams.topic} />
+        )}
+        <input
+          type="text"
+          name="q"
+          defaultValue={searchParams.q}
+          placeholder="Search organizations, missions, or locations"
+          className="w-full border border-black/15 bg-white px-4 py-3 text-sm text-navy outline-none transition-colors placeholder:text-navy/35 focus:border-navy"
+        />
+        <button
+          type="submit"
+          className="border border-navy bg-navy px-6 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-white transition-colors hover:bg-navy/90"
+        >
+          Search
+        </button>
+      </form>
+
       {/* Topic filters */}
       <div className="flex flex-wrap gap-2 mb-10">
         <Link
-          href="/orgs"
+          href={searchParams.q ? `/orgs?q=${encodeURIComponent(searchParams.q)}` : "/orgs"}
           className={`tag px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
             !searchParams.topic ? "bg-navy text-white border-navy" : "border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
           }`}
@@ -51,7 +81,7 @@ export default async function OrgsPage({
         {TOPIC_TAGS.map((tag) => (
           <Link
             key={tag}
-            href={`/orgs?topic=${encodeURIComponent(tag)}`}
+            href={`/orgs?topic=${encodeURIComponent(tag)}${searchParams.q ? `&q=${encodeURIComponent(searchParams.q)}` : ""}`}
             className={`tag px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
               searchParams.topic === tag ? "bg-navy text-white border-navy" : "border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
             }`}
@@ -70,7 +100,7 @@ export default async function OrgsPage({
       ) : (
         <div className="text-center py-24 text-gray-400">
           <p className="text-5xl mb-4">🏢</p>
-          <p className="text-lg">No organizations found for this topic yet.</p>
+          <p className="text-lg">No organizations matched that search yet.</p>
           <Link href="/orgs/register" className="btn-primary inline-block mt-6 text-sm">
             Be the first to register
           </Link>

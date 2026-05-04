@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { fetchBillDetail, fetchRecentBills, type CongressBill } from "./congress";
-import { inferTopics } from "./topics";
+import { inferTopics, normalizeTopicTags } from "./topics";
 import { isMajorBillAction } from "./breaking-bills";
 import { fetchBestOpenverseBillImage, getNoImageAttemptMetadata } from "./openverse";
 
@@ -15,11 +15,14 @@ export async function fetchBillsForMetadataIngest(
 
 export async function upsertBillMetadataFromCongress(bill: CongressBill) {
   const billId = `${bill.type.toLowerCase()}-${bill.number}-${bill.congress}`;
-  const topicTags = inferTopics(bill.title);
+  const topicTags = normalizeTopicTags(inferTopics(bill.title), bill.title);
   const detail = await fetchBillDetail(bill.congress, bill.type, bill.number);
   const sponsor = detail?.sponsor ?? bill.sponsors?.[0]?.fullName ?? "Unknown";
   const status = bill.latestAction?.text ?? "Unknown";
-  const introducedAt = parseIntroducedDate(bill.introducedDate);
+  const introducedAt = parseIntroducedDate(
+    bill.introducedDate,
+    bill.latestAction?.actionDate
+  );
   const existing = await prisma.bill.findUnique({
     where: { id: billId },
     select: { status: true, breakingAt: true, title: true, imageFetchedAt: true },
@@ -66,13 +69,25 @@ export async function upsertBillMetadataFromCongress(bill: CongressBill) {
   };
 }
 
-function parseIntroducedDate(introducedDate?: string) {
-  if (!introducedDate) {
-    return new Date();
+export function parseIntroducedDate(
+  introducedDate?: string,
+  fallbackActionDate?: string
+) {
+  if (introducedDate) {
+    const parsed = new Date(introducedDate);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
   }
 
-  const parsed = new Date(introducedDate);
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  if (fallbackActionDate) {
+    const parsedFallback = new Date(fallbackActionDate);
+    if (!Number.isNaN(parsedFallback.getTime())) {
+      return parsedFallback;
+    }
+  }
+
+  return new Date("2000-01-01T00:00:00.000Z");
 }
 
 async function refreshBillImage(

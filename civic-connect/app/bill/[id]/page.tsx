@@ -1,4 +1,3 @@
-import { prisma } from "@/lib/prisma";
 import { getBillOrFetch } from "@/lib/getBillOrFetch";
 import StanceCard from "@/components/StanceCard";
 import ActionCard from "@/components/ActionCard";
@@ -9,32 +8,18 @@ import PageViewTracker from "@/components/PageViewTracker";
 import BillViewTracker from "@/components/BillViewTracker";
 import RepresentativeStances from "@/components/RepresentativeStances";
 import BillIssueVisual from "@/components/BillIssueVisual";
+import { getCurrentUser } from "@/lib/user-tracking";
+import { getBillChamberFocus } from "@/lib/legislative";
+import { getRelatedOrganizationsAndEvents } from "@/lib/organization-matching";
+import { getSummaryPreview } from "@/lib/bill-summary";
+import { formatTopicTag } from "@/lib/topics";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle, Clock, AlertCircle } from "lucide-react";
-import { formatOpenverseLicense } from "@/lib/openverse";
 
 export const dynamic = "force-dynamic";
 
 async function getBill(id: string) {
   return getBillOrFetch(id);
-}
-
-async function getRelatedOrgsAndEvents(topicTags: string[]) {
-  const orgs = await prisma.organization.findMany({
-    where: { topicTags: { hasSome: topicTags } },
-    take: 3,
-  });
-  const orgIds = orgs.map((o: { id: string }) => o.id);
-  const events = await prisma.event.findMany({
-    where: {
-      orgId: { in: orgIds },
-      date: { gte: new Date() },
-    },
-    take: 3,
-    orderBy: { date: "asc" },
-    include: { org: { select: { name: true } } },
-  });
-  return { orgs, events };
 }
 
 function StatusIcon({ status }: { status: string }) {
@@ -64,12 +49,16 @@ export default async function BillDetailPage({
         <p className="text-gray-400 text-sm mb-8">
           Make sure the bill ID is in the format <code className="bg-gray-100 px-1 rounded">hr-1-119</code> (type-number-congress), and that your Congress.gov API key is valid.
         </p>
-        <Link href="/" className="btn-primary inline-block">Back to Home</Link>
+        <Link href="/bills" className="btn-primary inline-block">Back to Bills</Link>
       </div>
     );
   }
 
-  const { orgs, events } = await getRelatedOrgsAndEvents(bill.topicTags);
+  const currentUser = await getCurrentUser().catch(() => null);
+  const { orgs, events } = await getRelatedOrganizationsAndEvents(bill.topicTags);
+  const chamberFocus = getBillChamberFocus(bill.status, bill.type);
+  const plainLanguage = getSummaryPreview(bill.summary?.plainLanguage);
+  const whyItMatters = getSummaryPreview(bill.summary?.whyItMatters);
   type StanceWithCosponsors = {
     id: string; billId: string; party: string; position: string;
     voteYes: number; voteNo: number; cosponsors?: number; source: string;
@@ -78,13 +67,13 @@ export default async function BillDetailPage({
   const repStance = bill.stances.find((s: StanceWithCosponsors) => s.party === "Republican") as StanceWithCosponsors | undefined;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <PageViewTracker billId={bill.id} />
       <BillViewTracker billId={bill.id} topics={bill.topicTags} />
       {/* Back */}
       <Link
         href="/bills"
-        className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-navy mb-8 transition-colors"
+        className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-navy mb-5 transition-colors"
       >
         <ArrowLeft size={16} /> Back to Bills
       </Link>
@@ -93,7 +82,7 @@ export default async function BillDetailPage({
         {/* Main content */}
         <div className="lg:col-span-2 flex flex-col gap-8">
           {/* Issue Card — full detail */}
-          <div className="card p-8">
+          <div className="card p-6 sm:p-8">
             <div className="grid gap-6 md:grid-cols-[1fr_270px] md:items-start">
               <div>
                 <div className="flex flex-wrap gap-2 mb-4">
@@ -103,7 +92,7 @@ export default async function BillDetailPage({
                       href={`/bills?topic=${encodeURIComponent(tag)}`}
                       className="tag bg-blue-50 text-civic-blue hover:bg-civic-blue hover:text-white transition-colors"
                     >
-                      {tag}
+                      {formatTopicTag(tag)}
                     </Link>
                   ))}
                 </div>
@@ -140,26 +129,17 @@ export default async function BillDetailPage({
               />
             </div>
 
-            {(bill.imagePageUrl || bill.imageCreator || bill.imageLicense) && (
+            {bill.imagePageUrl && (
               <div className="mt-4 text-xs text-gray-500">
-                <span className="font-medium text-gray-600">Image:</span>{" "}
-                {bill.imagePageUrl ? (
-                  <a
-                    href={bill.imagePageUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-civic-blue hover:underline"
-                  >
-                    {bill.imageTitle || "View source"}
-                  </a>
-                ) : (
-                  <span>{bill.imageTitle || "Openverse result"}</span>
-                )}
-                {bill.imageCreator && <span>{` · by ${bill.imageCreator}`}</span>}
-                {formatOpenverseLicense(bill.imageLicense, bill.imageLicenseVersion) && (
-                  <span>{` · ${formatOpenverseLicense(bill.imageLicense, bill.imageLicenseVersion)}`}</span>
-                )}
-                {bill.imageSource && <span>{` · ${bill.imageSource}`}</span>}
+                <span className="font-medium text-gray-600">Illustrative image:</span>{" "}
+                <a
+                  href={bill.imagePageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-civic-blue hover:underline"
+                >
+                  View original image
+                </a>
               </div>
             )}
 
@@ -185,9 +165,9 @@ export default async function BillDetailPage({
           <BillProgressFlow status={bill.status} />
 
           {/* AI Summary card */}
-          <div className="card p-8">
+          <div className="card p-6 sm:p-8">
             {/* AI Summary */}
-            {bill.summary ? (
+            {bill.summary && (plainLanguage || bill.summary.keyProvisions.length > 0 || whyItMatters) ? (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -196,7 +176,9 @@ export default async function BillDetailPage({
                   </div>
                   <FeedbackButton billId={bill.id} />
                 </div>
-                <p className="text-gray-700 leading-relaxed mb-6">{bill.summary.plainLanguage}</p>
+                {plainLanguage && (
+                  <p className="text-gray-700 leading-relaxed mb-6">{plainLanguage}</p>
+                )}
 
                 {bill.summary.keyProvisions.length > 0 && (
                   <div>
@@ -214,13 +196,13 @@ export default async function BillDetailPage({
                   </div>
                 )}
 
-                {(bill.summary.whyItMatters || bill.summary.plainLanguage) && (
+                {(whyItMatters || plainLanguage) && (
                   <div className="mt-6 p-4 bg-civic-gold/10 border border-civic-gold/30 rounded-xl">
                     <h3 className="font-semibold text-navy mb-2 flex items-center gap-2">
                       <span className="text-civic-gold">★</span> Why This Matters
                     </h3>
                     <p className="text-sm text-gray-700 leading-relaxed">
-                      {bill.summary.whyItMatters || bill.summary.plainLanguage}
+                      {whyItMatters || plainLanguage}
                     </p>
                   </div>
                 )}
@@ -231,7 +213,11 @@ export default async function BillDetailPage({
           </div>
 
           {/* Representative Stances */}
-          <RepresentativeStances billId={bill.id} />
+          <RepresentativeStances
+            billId={bill.id}
+            chamber={chamberFocus}
+            preferredRepBioguideIds={currentUser?.preferredRepBioguideIds ?? []}
+          />
 
           {/* Stance Cards */}
           {(demStance || repStance) && (

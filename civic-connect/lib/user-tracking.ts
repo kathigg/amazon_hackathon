@@ -2,8 +2,15 @@ import { cookies } from "next/headers";
 import { prisma } from "./prisma";
 import {
   sanitizeInterestSelections,
+  getInterestTopicWeights,
   normalizeTopicWeights,
 } from "./account-interests";
+import {
+  isValidTimeZone,
+  sanitizeEmailSubscriptions,
+  type EmailSubscription,
+} from "./email-preferences";
+import { sendWelcomeEmail } from "./email";
 
 const USER_COOKIE_NAME = "civic_user_id";
 const SESSION_COOKIE_NAME = "civic_session_id";
@@ -50,6 +57,14 @@ async function findUserById(userId: string) {
       email: true,
       interestSelections: true,
       topicWeights: true,
+      emailSubscriptions: true,
+      timezone: true,
+      zipCode: true,
+      preferredRepBioguideIds: true,
+      welcomeEmailSentAt: true,
+      onboardingDigestSentAt: true,
+      createdAt: true,
+      lastSeen: true,
     },
   });
 }
@@ -113,12 +128,26 @@ export async function getOrCreateUserId(): Promise<string> {
 export async function saveAccountProfile({
   email,
   interestSelections,
+  emailSubscriptions,
+  timezone,
+  zipCode,
+  preferredRepBioguideIds,
 }: {
   email: string;
   interestSelections: string[];
+  emailSubscriptions: string[];
+  timezone?: string;
+  zipCode?: string;
+  preferredRepBioguideIds?: string[];
 }) {
   const normalizedEmail = normalizeEmail(email);
   const selections = sanitizeInterestSelections(interestSelections);
+  const subscriptions = sanitizeEmailSubscriptions(emailSubscriptions);
+  const sanitizedTimezone = isValidTimeZone(timezone) ? timezone : undefined;
+  const sanitizedZipCode = zipCode?.trim() || undefined;
+  const sanitizedPreferredRepIds = Array.from(
+    new Set((preferredRepBioguideIds ?? []).map((value) => value.trim()).filter(Boolean))
+  ).slice(0, 6);
 
   if (selections.length === 0) {
     throw new Error("Select at least one issue before continuing.");
@@ -136,16 +165,51 @@ export async function saveAccountProfile({
     );
   }
 
-  await prisma.user.update({
+  const currentUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      email: true,
+      welcomeEmailSentAt: true,
+    },
+  });
+
+  const user = await prisma.user.update({
     where: { id: userId },
     data: {
       email: normalizedEmail,
       interestSelections: selections,
+      emailSubscriptions: subscriptions,
+      timezone: sanitizedTimezone,
+      zipCode: sanitizedZipCode,
+      preferredRepBioguideIds: sanitizedPreferredRepIds,
+      topicWeights: getInterestTopicWeights(selections),
       lastSeen: new Date(),
     },
   });
 
   cookies().set(USER_COOKIE_NAME, userId, getPersistentCookieOptions());
+
+  const shouldSendWelcomeEmail =
+    !currentUser?.welcomeEmailSentAt &&
+    (!currentUser?.email || currentUser.email !== normalizedEmail);
+
+  if (shouldSendWelcomeEmail) {
+    const sent = await sendWelcomeEmail({
+      email: normalizedEmail,
+      selectedTopics: selections,
+    });
+
+    if (sent) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          welcomeEmailSentAt: new Date(),
+        },
+      });
+    }
+  }
+
+  await clearSessionCookiesForUser(userId);
 
   return findUserById(userId);
 }
@@ -171,6 +235,33 @@ export async function loginWithEmail(email: string) {
   clearCookie(SESSION_COOKIE_NAME);
 
   return findUserById(user.id);
+}
+
+export async function saveUserPreferences({
+  zipCode,
+  preferredRepBioguideIds,
+}: {
+  zipCode?: string;
+  preferredRepBioguideIds?: string[];
+}) {
+  const userId = await getOrCreateUserId();
+  const sanitizedZipCode = zipCode?.trim() || undefined;
+  const sanitizedPreferredRepIds = Array.from(
+    new Set((preferredRepBioguideIds ?? []).map((value) => value.trim()).filter(Boolean))
+  ).slice(0, 6);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      zipCode: sanitizedZipCode,
+      preferredRepBioguideIds: sanitizedPreferredRepIds,
+      lastSeen: new Date(),
+    },
+  });
+
+  cookies().set(USER_COOKIE_NAME, userId, getPersistentCookieOptions());
+
+  return findUserById(userId);
 }
 
 export function logoutCurrentUser() {
@@ -270,6 +361,28 @@ export async function updateTopicWeights(userId: string, topics: string[]) {
     data: { topicWeights: weights },
   });
 }
+
+async function clearSessionCookiesForUser(userId: string) {
+  const activeSessions = await prisma.session.findMany({
+    where: { userId },
+    select: { id: true },
+  });
+
+  if (activeSessions.length === 0) {
+    return;
+  }
+
+  const cookieStore = cookies();
+  const currentSessionId = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+
+  if (currentSessionId && activeSessions.some((session) => session.id === currentSessionId)) {
+    clearCookie(SESSION_COOKIE_NAME);
+  }
+}
+
+export type CurrentUser = Awaited<ReturnType<typeof getCurrentUser>>;
+export type CurrentUserRecord = NonNullable<CurrentUser>;
+export type CurrentEmailSubscription = EmailSubscription;
 
 export async function endSession(sessionId: string) {
   await prisma.session.update({

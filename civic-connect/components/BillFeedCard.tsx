@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import BillIssueVisual from "@/components/BillIssueVisual";
+import { getSummaryPreview } from "@/lib/bill-summary";
+import { formatTopicTag } from "@/lib/topics";
 
 interface BillFeedCardProps {
   id: string;
@@ -39,7 +41,8 @@ export default function BillFeedCard({
   imageLicenseVersion,
 }: BillFeedCardProps) {
   const timeAgo = getTimeAgo(introducedAt);
-  const primaryTopic = topicTags[0] ?? "General";
+  const primaryTopic = topicTags[0] ? formatTopicTag(topicTags[0]) : "General";
+  const summaryPreview = getSummaryPreview(plainLanguage);
 
   return (
     <Link
@@ -64,9 +67,9 @@ export default function BillFeedCard({
             Sponsored by {sponsor}
           </p>
 
-          {plainLanguage && (
+          {summaryPreview && (
             <p className="mt-4 max-w-3xl text-sm leading-7 text-navy/68 line-clamp-3">
-              {plainLanguage}
+              {summaryPreview}
             </p>
           )}
 
@@ -76,7 +79,7 @@ export default function BillFeedCard({
                 key={tag}
                 className="border border-black/10 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-navy/60"
               >
-                {tag}
+                {formatTopicTag(tag)}
               </span>
             ))}
             {topicTags.length > 3 && (

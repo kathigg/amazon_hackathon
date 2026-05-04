@@ -1,17 +1,12 @@
 "use client";
-import Image from "next/image";
+import CivicConnectMark from "@/components/CivicConnectMark";
 
 export default function SummaryLoading() {
   return (
     <div className="flex flex-col items-center justify-center py-8 px-4 bg-gradient-to-br from-blue-50 to-amber-50 rounded-2xl">
-      <Image
-        src="/squirrel-loading.gif"
-        alt="Loading animation"
-        width={180}
-        height={180}
-        unoptimized
-        className="mb-2"
-      />
+      <div className="mb-5 rounded-full border border-black/10 bg-white/80 p-5">
+        <CivicConnectMark className="h-16 w-16" />
+      </div>
       <div className="text-center">
         <p className="font-semibold text-navy text-sm">Reading the bill…</p>
         <p className="text-gray-400 text-xs mt-1 max-w-xs">

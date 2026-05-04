@@ -1,199 +1,279 @@
-import { prisma } from "@/lib/prisma";
+import {
+  getStanceDisplayLabel,
+  listBillRepresentativePositions,
+  type BillRepresentativePosition,
+} from "@/lib/rep-positions";
+import {
+  getChamberLabel,
+  getRepresentativeLabel,
+  type ChamberFocus,
+} from "@/lib/legislative";
 
 interface RepresentativeStancesProps {
   billId: string;
-  chamber?: "house" | "senate" | "both";
+  chamber?: ChamberFocus;
+  preferredRepBioguideIds?: string[];
 }
 
 export default async function RepresentativeStances({
   billId,
   chamber = "both",
+  preferredRepBioguideIds = [],
 }: RepresentativeStancesProps) {
-  // Get all stances for this bill
-  const stances = await prisma.repStance.findMany({
-    where: {
-      billId,
-      ...(chamber !== "both" && {
-        representative: { chamber },
-      }),
-    },
-    include: {
-      representative: true,
-    },
-    orderBy: {
-      confidence: "desc",
-    },
+  const positions = await listBillRepresentativePositions({
+    billId,
+    chamber,
+    preferredRepBioguideIds,
   });
 
-  if (stances.length === 0) {
-    return (
-      <div className="card p-6 text-center">
-        <p className="text-gray-500 text-sm">
-          No representative stances found yet. Check back after the next scraping cycle.
-        </p>
-      </div>
-    );
+  if (positions.length === 0) {
+    return null;
   }
 
-  // Count by stance
-  const counts = {
-    strong_support: stances.filter((s) => s.stance === "strong_support").length,
-    possible_support: stances.filter((s) => s.stance === "possible_support").length,
-    neutral: stances.filter((s) => s.stance === "neutral").length,
-    possible_reject: stances.filter((s) => s.stance === "possible_reject").length,
-    strong_reject: stances.filter((s) => s.stance === "strong_reject").length,
-  };
-
-  const total = stances.length;
-  const supportCount = counts.strong_support + counts.possible_support;
-  const rejectCount = counts.strong_reject + counts.possible_reject;
+  const support = positions.filter(
+    (position) =>
+      position.stance === "strong_support" ||
+      position.stance === "possible_support"
+  );
+  const oppose = positions.filter(
+    (position) =>
+      position.stance === "strong_reject" ||
+      position.stance === "possible_reject"
+  );
+  const noPosition = positions.filter((position) => position.stance === "neutral");
+  const preferred = positions.filter((position) => position.isPreferred);
+  const chamberLabel = getChamberLabel(chamber);
+  const representativeLabel = getRepresentativeLabel(chamber);
 
   return (
-    <div className="space-y-6">
-      {/* Summary */}
-      <div className="card p-6">
-        <h3 className="font-bold text-navy text-xl mb-4">
-          Representative Positions
-        </h3>
-        
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="text-center">
-            <div className="text-3xl font-bold text-green-600">{supportCount}</div>
-            <div className="text-sm text-gray-500">Support</div>
+    <section className="space-y-6">
+      <div className="card p-6 sm:p-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+              Auto-Whip
+            </p>
+            <h2 className="mt-2 font-display text-3xl leading-none text-navy">
+              Where {chamberLabel} {representativeLabel} currently stand
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-navy/68">
+              Built from official statements, public releases, and voting records where they exist. Members without enough evidence are marked as no position.
+            </p>
           </div>
-          <div className="text-center">
-            <div className="text-3xl font-bold text-gray-400">{counts.neutral}</div>
-            <div className="text-sm text-gray-500">Neutral</div>
-          </div>
-          <div className="text-center">
-            <div className="text-3xl font-bold text-red-600">{rejectCount}</div>
-            <div className="text-sm text-gray-500">Oppose</div>
+
+          <div className="inline-flex items-center gap-2 border border-black/10 bg-[#f6f1e7] px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/55">
+            <span className="h-2 w-2 rounded-full bg-green-500" />
+            {positions.length} tracked
           </div>
         </div>
 
-        {/* Visual bar */}
-        <div className="h-8 rounded-full overflow-hidden flex bg-gray-100">
-          {supportCount > 0 && (
-            <div
-              className="bg-green-500 flex items-center justify-center text-white text-xs font-bold"
-              style={{ width: `${(supportCount / total) * 100}%` }}
-            >
-              {Math.round((supportCount / total) * 100)}%
-            </div>
-          )}
-          {counts.neutral > 0 && (
-            <div
-              className="bg-gray-300 flex items-center justify-center text-gray-700 text-xs font-bold"
-              style={{ width: `${(counts.neutral / total) * 100}%` }}
-            >
-              {Math.round((counts.neutral / total) * 100)}%
-            </div>
-          )}
-          {rejectCount > 0 && (
-            <div
-              className="bg-red-500 flex items-center justify-center text-white text-xs font-bold"
-              style={{ width: `${(rejectCount / total) * 100}%` }}
-            >
-              {Math.round((rejectCount / total) * 100)}%
-            </div>
-          )}
+        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+          <CountCard label="Support" count={support.length} tone="green" />
+          <CountCard label="No Position" count={noPosition.length} tone="stone" />
+          <CountCard label="Oppose" count={oppose.length} tone="red" />
         </div>
 
-        <p className="text-xs text-gray-400 mt-3">
-          Based on analysis of {total} representative{total !== 1 ? "s'" : "'s"} public
-          statements and voting records
-        </p>
-      </div>
-
-      {/* Detailed breakdown */}
-      <div className="card p-6">
-        <h4 className="font-semibold text-navy mb-4">Stance Breakdown</h4>
-        
-        <div className="space-y-3">
-          {[
-            { key: "strong_support", label: "Strong Support", color: "bg-green-600", count: counts.strong_support },
-            { key: "possible_support", label: "Possible Support", color: "bg-green-400", count: counts.possible_support },
-            { key: "neutral", label: "No Position", color: "bg-gray-300", count: counts.neutral },
-            { key: "possible_reject", label: "Possible Opposition", color: "bg-red-400", count: counts.possible_reject },
-            { key: "strong_reject", label: "Strong Opposition", color: "bg-red-600", count: counts.strong_reject },
-          ].map((item) => (
-            <div key={item.key} className="flex items-center gap-3">
-              <div className={`w-4 h-4 rounded ${item.color}`} />
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">{item.label}</span>
-                  <span className="text-sm font-bold text-navy">{item.count}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="mt-6 h-3 overflow-hidden rounded-full bg-black/5">
+          <div className="flex h-full w-full">
+            <div
+              className="bg-green-600"
+              style={{ width: `${(support.length / positions.length) * 100}%` }}
+            />
+            <div
+              className="bg-stone-300"
+              style={{ width: `${(noPosition.length / positions.length) * 100}%` }}
+            />
+            <div
+              className="bg-red-600"
+              style={{ width: `${(oppose.length / positions.length) * 100}%` }}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Top representatives */}
-      <div className="card p-6">
-        <h4 className="font-semibold text-navy mb-4">Notable Positions</h4>
-        
-        <div className="space-y-3">
-          {stances
-            .filter((s) => s.stance !== "neutral" && s.confidence > 0.5)
-            .slice(0, 10)
-            .map((stance) => (
-              <div
-                key={stance.id}
-                className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold text-navy text-sm">
-                      {stance.representative.firstName} {stance.representative.lastName}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      ({stance.representative.party}-{stance.representative.state})
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 mb-2">
-                    <StanceBadge stance={stance.stance} />
-                    <span className="text-xs text-gray-400">
-                      {Math.round(stance.confidence * 100)}% confidence
-                    </span>
-                  </div>
-
-                  {stance.reasoning && (
-                    <p className="text-xs text-gray-600 leading-relaxed">
-                      {stance.reasoning}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
-        </div>
-
-        {stances.filter((s) => s.stance !== "neutral" && s.confidence > 0.5).length === 0 && (
-          <p className="text-sm text-gray-500 text-center py-4">
-            No high-confidence positions found yet
+      {preferred.length > 0 && (
+        <div className="card p-6 sm:p-8">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+            Your Delegation
           </p>
-        )}
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {preferred.map((position) => (
+              <RepresentativeCard
+                key={position.bioguideId}
+                position={position}
+                emphasize
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="card p-6 sm:p-8">
+        <div className="space-y-4">
+          <PositionGroup
+            title="Support"
+            subtitle="Members whose public record points toward backing the bill."
+            positions={support}
+            defaultOpen
+          />
+          <PositionGroup
+            title="Opposition"
+            subtitle="Members whose public record points toward opposition."
+            positions={oppose}
+            defaultOpen
+          />
+          <PositionGroup
+            title="No Position"
+            subtitle="Members we are still tracking, but without enough public evidence yet."
+            positions={noPosition}
+            defaultOpen={false}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CountCard({
+  label,
+  count,
+  tone,
+}: {
+  label: string;
+  count: number;
+  tone: "green" | "red" | "stone";
+}) {
+  const toneClasses = {
+    green: "bg-green-50 text-green-700",
+    red: "bg-red-50 text-red-700",
+    stone: "bg-stone-100 text-stone-700",
+  }[tone];
+
+  return (
+    <div className={`border border-black/10 p-4 ${toneClasses}`}>
+      <div className="text-3xl font-bold">{count}</div>
+      <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.24em]">
+        {label}
       </div>
     </div>
   );
 }
 
-function StanceBadge({ stance }: { stance: string }) {
-  const config = {
-    strong_support: { label: "Strong Support", color: "bg-green-100 text-green-700" },
-    possible_support: { label: "Likely Supports", color: "bg-green-50 text-green-600" },
-    neutral: { label: "No Position", color: "bg-gray-100 text-gray-600" },
-    possible_reject: { label: "Likely Opposes", color: "bg-red-50 text-red-600" },
-    strong_reject: { label: "Strong Opposition", color: "bg-red-100 text-red-700" },
-  };
-
-  const { label, color } = config[stance as keyof typeof config] || config.neutral;
-
+function PositionGroup({
+  title,
+  subtitle,
+  positions,
+  defaultOpen,
+}: {
+  title: string;
+  subtitle: string;
+  positions: BillRepresentativePosition[];
+  defaultOpen: boolean;
+}) {
   return (
-    <span className={`text-xs px-2 py-1 rounded-full font-medium ${color}`}>
-      {label}
-    </span>
+    <details
+      open={defaultOpen}
+      className="border border-black/10 bg-[#fcfaf6] p-4 open:bg-white"
+    >
+      <summary className="cursor-pointer list-none">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-navy/70">
+              {title}
+            </h3>
+            <p className="mt-2 max-w-3xl text-sm leading-7 text-navy/62">
+              {subtitle}
+            </p>
+          </div>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-navy/45">
+            {positions.length}
+          </span>
+        </div>
+      </summary>
+
+      {positions.length > 0 ? (
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          {positions.map((position) => (
+            <RepresentativeCard
+              key={position.bioguideId}
+              position={position}
+              emphasize={position.isPreferred}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-navy/55">No members in this group yet.</p>
+      )}
+    </details>
+  );
+}
+
+function RepresentativeCard({
+  position,
+  emphasize = false,
+}: {
+  position: BillRepresentativePosition;
+  emphasize?: boolean;
+}) {
+  return (
+    <div
+      className={`border p-4 ${
+        emphasize ? "border-navy bg-navy text-white" : "border-black/10 bg-white"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className={`text-sm font-semibold ${emphasize ? "text-white" : "text-navy"}`}>
+            {position.name}
+          </p>
+          <p
+            className={`mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+              emphasize ? "text-white/70" : "text-navy/45"
+            }`}
+          >
+            {position.party}-{position.state}
+            {position.district ? ` · District ${position.district}` : ""}
+          </p>
+        </div>
+        <span
+          className={`inline-flex px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+            emphasize
+              ? "bg-white/15 text-white"
+              : position.stance === "strong_support" ||
+                  position.stance === "possible_support"
+                ? "bg-green-50 text-green-700"
+                : position.stance === "strong_reject" ||
+                    position.stance === "possible_reject"
+                  ? "bg-red-50 text-red-700"
+                  : "bg-stone-100 text-stone-700"
+          }`}
+        >
+          {getStanceDisplayLabel(position.stance)}
+        </span>
+      </div>
+
+      {position.reasoning && (
+        <p
+          className={`mt-3 text-sm leading-6 ${
+            emphasize ? "text-white/80" : "text-navy/68"
+          }`}
+        >
+          {position.reasoning}
+        </p>
+      )}
+
+      {position.websiteUrl && (
+        <a
+          href={position.websiteUrl}
+          target="_blank"
+          rel="noreferrer"
+          className={`mt-4 inline-flex text-[11px] font-semibold uppercase tracking-[0.18em] ${
+            emphasize ? "text-white" : "text-civic-blue"
+          }`}
+        >
+          Contact via official website
+        </a>
+      )}
+    </div>
   );
 }

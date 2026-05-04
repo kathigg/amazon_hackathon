@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
+import { getSummaryPreview } from "@/lib/bill-summary";
 
 interface BreakingBill {
   id: string;
@@ -72,6 +73,7 @@ export default function BreakingBanner() {
     1,
     Math.ceil((new Date(bill.expiresAt).getTime() - Date.now()) / 60000)
   );
+  const summaryPreview = getSummaryPreview(bill.summary);
 
   return (
     <div
@@ -97,9 +99,9 @@ export default function BreakingBanner() {
           <p className="mt-1 text-sm leading-6 text-[#5e1007]/85">
             {bill.status}
           </p>
-          {bill.summary && (
+          {summaryPreview && (
             <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#5e1007]/72">
-              {bill.summary}
+              {summaryPreview}
             </p>
           )}
         </div>

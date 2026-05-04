@@ -1,54 +1,36 @@
-# AWS Migration Plan
+# AWS Deployment Notes
 
-This project is moving in two phases:
+This project now targets AWS as the production platform for both hosting and database traffic.
 
-1. `Phase 1`: move hosting and background jobs to AWS while keeping `Neon` as the database.
-2. `Phase 2`: migrate the database from `Neon` to `Aurora PostgreSQL Serverless v2` behind `RDS Proxy`.
-
-This keeps the risky infrastructure changes separate from the database migration.
-
-## Phase 1
-
-### Target architecture
+## Current production architecture
 
 - Website: `Amazon ECS Express Mode`
 - Background jobs: `AWS Lambda`
 - Scheduling: `Amazon EventBridge Scheduler`
 - Queueing: `Amazon SQS`
-- Database: `Neon Postgres`
-- AI: `Amazon Bedrock`
+- Database: `Amazon Aurora PostgreSQL Serverless v2`
+- Lambda connection pooling: `Amazon RDS Proxy`
+- Secrets: `AWS Secrets Manager`
+- AI provider in production: `Amazon Bedrock`
 
-### Repo-side changes already made
+## Repo-side changes already made
 
-- `scripts/start.sh` now only starts the web server.
+- `scripts/start.sh` only starts the web server.
 - Shared job modules live under `lib/jobs/`.
-- `docker-compose.yml` uses `scripts/start-local.sh` for local Docker bootstrapping.
-- Vercel build config no longer runs `prisma db push`.
+- Account onboarding, digest routes, and representative preferences are handled in-app.
+- Local docs and copy no longer assume Vercel cron or a Neon-hosted production database.
 
-### AWS console steps
+## Production services
 
-1. Create an `ECR` private repository named `civic-connect-web`.
-2. Grant the deployment IAM principal permission to push images to ECR.
-3. Push the production image to ECR.
-4. Create an `ECS Express Mode` service from that image.
-5. Configure the ECS service environment variables.
-6. Keep outbound networking public for Phase 1 so the service can reach Neon and Bedrock without extra VPC work.
-7. Create three Lambda functions:
-   - `civic-ingest-job`
-   - `civic-scrape-coordinator`
-   - `civic-scrape-worker`
-8. Create one main SQS queue and one dead-letter queue:
-   - `civic-scrape-queue`
-   - `civic-scrape-dlq`
-9. Attach the SQS trigger to `civic-scrape-worker`.
-10. Create EventBridge schedules:
-   - ingest cadence -> `civic-ingest-job`
-   - scrape cadence -> `civic-scrape-coordinator`
-11. Once AWS jobs are stable, remove Vercel cron usage.
+- `civic-connect-web` serves the Next.js app on ECS.
+- `civic-ingest-job` runs bill metadata ingestion in Lambda.
+- `civic-scrape-coordinator` queues representative-analysis work.
+- `civic-scrape-worker` processes the queue and writes results back to Postgres.
+- `civic-scrape-queue` and `civic-scrape-dlq` back the representative-analysis pipeline.
 
-### ECS environment variables
+## Required environment variables
 
-At minimum, set:
+At minimum, production services should have:
 
 ```bash
 DATABASE_URL=...
@@ -61,88 +43,24 @@ AWS_BEDROCK_MODEL=us.anthropic.claude-haiku-4-5-20251001-v1:0
 AWS_BEARER_TOKEN_BEDROCK=...
 INGEST_SECRET=...
 CRON_SECRET=...
+APP_BASE_URL=https://www.civicconnect.net
+SES_FROM_EMAIL=...
 ```
 
-If you move Bedrock auth to IAM roles later, remove the bearer token.
+If Bedrock auth is moved fully to IAM roles later, remove the bearer token.
 
-### Lambda environment variables
-
-Use the same application env vars that each job actually needs.
-
-- `civic-ingest-job`: `DATABASE_URL`, `CONGRESS_API_KEY`, secrets it needs
-- `civic-scrape-coordinator`: `DATABASE_URL`, `CRON_SECRET` if needed
-- `civic-scrape-worker`: `DATABASE_URL`, `AWS_REGION`, `AWS_BEDROCK_MODEL`, Bedrock auth
-
-### Validation checklist
+## Validation checklist
 
 1. `npm run build` succeeds locally.
 2. The ECR image builds successfully.
-3. The ECS Express service boots and serves the site.
-4. The ECS site can read from Neon.
+3. The ECS service serves the site and health checks pass.
+4. The ECS service can read and write through Aurora.
 5. `civic-ingest-job` runs manually in Lambda.
 6. `civic-scrape-coordinator` publishes messages to SQS.
-7. `civic-scrape-worker` consumes a message and writes results back to Postgres.
+7. `civic-scrape-worker` consumes a message and writes results back to Aurora through RDS Proxy.
+8. EventBridge schedules remain enabled for ingest and representative-analysis jobs.
 
-## Phase 2
+## Rollback posture
 
-### Target architecture
-
-- Website: `Amazon ECS Express Mode`
-- Background jobs: `AWS Lambda`
-- Scheduling: `Amazon EventBridge Scheduler`
-- Queueing: `Amazon SQS`
-- Database: `Aurora PostgreSQL Serverless v2`
-- Connection pooling for Lambda: `RDS Proxy`
-- Secrets: `AWS Secrets Manager`
-
-### Why Phase 2 is separate
-
-Changing hosting and changing the database at the same time makes rollback harder. Once ECS and Lambda are stable against Neon, move only the database.
-
-### AWS console steps
-
-1. Create an `Aurora PostgreSQL Serverless v2` cluster in the target AWS region.
-2. Create the database, app user, and password.
-3. Store credentials in `Secrets Manager`.
-4. Create an `RDS Proxy` for the Aurora cluster.
-5. Put ECS and Lambda in the same VPC/subnets as Aurora and the proxy.
-6. Update security groups so ECS and Lambda can reach the proxy, and the proxy can reach Aurora.
-7. Export data from Neon.
-8. Import the schema and data into Aurora.
-9. Point the application `DATABASE_URL` at Aurora for ECS first.
-10. Point the Lambda jobs at the `RDS Proxy` endpoint.
-11. Run smoke tests for reads, writes, ingestion, and scraping.
-12. Decommission the Neon database only after a rollback window passes.
-
-### Data migration workflow
-
-1. Freeze schema changes.
-2. Run a final `prisma db push` or migration against the target schema before data import.
-3. Export Neon with `pg_dump`.
-4. Restore into Aurora with `pg_restore` or `psql`, depending on dump format.
-5. Verify row counts for core tables:
-   - `Bill`
-   - `BillSummary`
-   - `Representative`
-   - `RepStance`
-   - `ScrapedContent`
-   - `Organization`
-   - `Event`
-   - `User`
-   - `Session`
-   - `PageView`
-6. Swap application environment variables.
-
-### Cutover order
-
-1. Cut ECS from Neon to Aurora.
-2. Validate web reads and writes.
-3. Cut Lambda jobs from Neon to Aurora.
-4. Validate scheduled jobs.
-5. Keep Neon untouched for rollback until the system is stable.
-
-## Current blockers
-
-- The AWS deployment principal needs `ECR` push permissions before images can be pushed.
-- Docker Desktop must be running locally to build and push the image from this machine.
-
+- Keep the pre-Aurora dump and the old database path available until the AWS-hosted stack has been stable for the full rollback window.
+- Do not decommission the prior database backup until ECS, Lambda, and email digests have all been validated end to end.

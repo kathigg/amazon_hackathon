@@ -53,7 +53,7 @@ CivicConnect is a web-first platform modeled on [Bijak Memilih](https://bijakmem
 - Representative lookup by ZIP code via Google Civic Information API
 - Search and filter bills by topic area (12 categories)
 - Fully responsive — mobile-first design
-- Daily automated bill ingestion via Vercel cron
+- Daily automated bill ingestion via AWS EventBridge Scheduler and Lambda
 
 ---
 
@@ -67,7 +67,7 @@ CivicConnect is a web-first platform modeled on [Bijak Memilih](https://bijakmem
 | Database | PostgreSQL via Prisma | Relational structure fits the bill/summary/stance relationships well. Prisma gives type-safe queries and easy migrations. |
 | AI | Vercel AI SDK (multi-provider) | Unified `generateObject()` API with structured output via zod schema. Supports Ollama (local GPU), Google Gemini, Anthropic Claude, and OpenAI — swap providers via env var, no code changes. Prompt design informed by BillSum research (Kornilova & Eidelman, 2019). |
 | Styling | Tailwind CSS | Utility-first keeps styles co-located with components and avoids stylesheet sprawl. |
-| Deployment | Docker Compose (local) + Vercel (production) | Docker gives a reproducible local environment. Vercel handles cron, edge functions, and zero-config deploys. |
+| Deployment | Docker Compose (local) + AWS ECS/Lambda (production) | Docker gives a reproducible local environment. AWS ECS serves the web app, while Lambda, SQS, and EventBridge handle scheduled jobs. |
 
 ### Architecture
 
@@ -79,7 +79,7 @@ Browser
         ├── /bill/[id]/contact     — Rep contact by ZIP
         └── /api/*                 — API routes (bills, orgs, reps, ingest)
               ├── Congress.gov API        — bill metadata, text, votes
-              ├── Vercel AI SDK           — summarization (Ollama / Gemini / Claude / GPT)
+              ├── AI provider layer       — summarization (Ollama / Gemini / Claude / GPT)
               │     └── lib/bill-text.ts  — HTML→clean text preprocessing
               └── Google Civic API        — representative lookup
         └── Prisma ORM → PostgreSQL
@@ -107,7 +107,7 @@ Browser
 - `force-dynamic` on all data pages keeps content fresh — accuracy matters more than cache performance for a civic information tool
 - Prisma indexes on `topicTags`, `status`, and `introducedAt` keep filtering fast as the bill count grows
 - Bill summaries are pre-generated and cached in the DB — AI costs don't scale with traffic
-- Vercel cron runs ingestion daily at 6am UTC without any manual intervention
+- AWS EventBridge Scheduler runs ingestion and analysis jobs without manual intervention
 
 ### Nonpartisanship by Design
 
@@ -264,15 +264,18 @@ curl -X POST https://your-domain.com/api/ingest \
 
 ---
 
-## Deployment (Vercel)
+## Deployment (AWS)
 
 1. Push to GitHub
-2. Import repo in Vercel
-3. Add all environment variables in Vercel dashboard
-4. Add a Postgres database (Vercel Postgres or Neon)
-5. Run schema changes separately:
+2. Build and push the production image to Amazon ECR
+3. Deploy the web app on Amazon ECS Express Mode
+4. Configure environment variables and secrets in AWS
+5. Use Aurora PostgreSQL Serverless v2 and RDS Proxy for the production database
+6. Run schema changes separately:
    `npx prisma db push`
-6. Deploy — `vercel.json` configures the daily cron automatically
+7. Use Lambda, SQS, and EventBridge Scheduler for ingest and representative-analysis jobs
+
+For the current production AWS handoff and operational rules, see [AWS_RUNTIME_SETUP.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/AWS_RUNTIME_SETUP.md) and [AWS_ECS_MIGRATION.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/AWS_ECS_MIGRATION.md).
 
 ---
 

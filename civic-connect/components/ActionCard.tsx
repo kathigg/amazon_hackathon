@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ExternalLink, Calendar, Users } from "lucide-react";
+import { formatTopicTag } from "@/lib/topics";
 
 interface Org {
   id: string;
@@ -70,7 +71,7 @@ export default function ActionCard({ orgs, events, billId, billTags = [] }: Acti
                           key={tag}
                           className="tag bg-civic-blue/10 text-civic-blue text-xs px-2 py-0.5"
                         >
-                          {tag}
+                          {formatTopicTag(tag)}
                         </span>
                       ))}
                     </div>

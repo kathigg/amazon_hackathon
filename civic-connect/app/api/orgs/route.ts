@@ -4,11 +4,19 @@ import { prisma } from "@/lib/prisma";
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const topic = searchParams.get("topic") ?? undefined;
+  const q = searchParams.get("q") ?? undefined;
   const location = searchParams.get("location") ?? undefined;
 
   const orgs = await prisma.organization.findMany({
     where: {
       ...(topic && { topicTags: { has: topic } }),
+      ...(q && {
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { mission: { contains: q, mode: "insensitive" } },
+          { location: { contains: q, mode: "insensitive" } },
+        ],
+      }),
       ...(location && { location: { contains: location, mode: "insensitive" } }),
     },
     include: {

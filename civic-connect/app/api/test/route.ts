@@ -9,7 +9,6 @@ export async function GET() {
       hasCongressKey: !!process.env.CONGRESS_API_KEY,
       hasGeminiKey: !!process.env.GOOGLE_GEMINI_KEY,
       hasIngestSecret: !!process.env.INGEST_SECRET,
-      databaseUrlPrefix: process.env.DATABASE_URL?.substring(0, 20) + "...",
-    }
+    },
   });
 }

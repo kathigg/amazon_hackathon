@@ -30,6 +30,10 @@ export default async function AccountPage() {
         <AccountPanel
           currentEmail={currentUser?.email ?? null}
           initialSelections={currentUser?.interestSelections ?? []}
+          initialSubscriptions={currentUser?.emailSubscriptions ?? ["weekly"]}
+          initialTimezone={currentUser?.timezone ?? null}
+          initialZipCode={currentUser?.zipCode ?? ""}
+          initialPreferredRepBioguideIds={currentUser?.preferredRepBioguideIds ?? []}
         />
       </section>
     </div>

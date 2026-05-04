@@ -1,3 +1,6 @@
+import { isSummaryPlaceholder } from "./bill-summary";
+import { normalizeTopicTags } from "./topics";
+
 const OPENVERSE_IMAGES_ENDPOINT = "https://api.openverse.org/v1/images/";
 const OPENVERSE_USER_AGENT = "CivicConnect/0.1 (Openverse bill imagery)";
 
@@ -75,29 +78,29 @@ const ISSUE_QUERY_OVERRIDES: Array<{
       "va health",
     ],
     queries: [
-      "veterans standing in front of american flag",
-      "veterans american flag",
+      "veterans services american flag",
+      "military veteran memorial",
     ],
   },
   {
     matches: ["housing", "rent", "mortgage", "homeless", "tenant"],
-    queries: ["affordable housing apartment buildings", "housing neighborhood homes"],
+    queries: ["affordable housing apartment buildings", "neighborhood homes city block"],
   },
   {
     matches: ["climate", "environment", "clean energy", "emissions", "wildfire"],
-    queries: ["climate change clean energy", "environment conservation landscape"],
+    queries: ["clean energy landscape", "environment conservation landscape"],
   },
   {
     matches: ["technology", "cyber", "artificial intelligence", "ai", "privacy", "data"],
-    queries: ["artificial intelligence circuit board", "technology data network"],
+    queries: ["technology data network abstract", "digital privacy abstract"],
   },
   {
     matches: ["education", "student", "school", "college", "teacher"],
-    queries: ["students classroom school", "education books graduation cap"],
+    queries: ["education books classroom", "public school building"],
   },
   {
     matches: ["immigration", "border", "asylum", "visa", "migrant", "citizenship"],
-    queries: ["immigration passport border crossing", "immigration family border"],
+    queries: ["immigration passport border crossing", "citizenship documents government office"],
   },
   {
     matches: ["infrastructure", "bridge", "highway", "transit", "rail", "airport"],
@@ -105,7 +108,7 @@ const ISSUE_QUERY_OVERRIDES: Array<{
   },
   {
     matches: ["civil rights", "equality", "discrimination", "voting rights", "justice"],
-    queries: ["civil rights march protest", "voting rights civic protest"],
+    queries: ["voting rights ballot box", "justice courthouse exterior"],
   },
   {
     matches: ["economy", "tax", "budget", "trade", "small business", "inflation"],
@@ -113,7 +116,7 @@ const ISSUE_QUERY_OVERRIDES: Array<{
   },
   {
     matches: ["healthcare", "medicare", "medicaid", "medical", "hospital", "drug"],
-    queries: ["healthcare hospital medicine", "doctor patient healthcare"],
+    queries: ["healthcare hospital medicine", "hospital exterior medical equipment"],
   },
   {
     matches: ["agriculture", "farm", "crop", "rural", "food"],
@@ -234,11 +237,14 @@ async function searchBestImageForQuery(query: string): Promise<OpenverseImage | 
 
 function buildOpenverseQueries(title: string, topicTags: string[], summary?: string) {
   const normalizedTitle = title.toLowerCase();
+  const normalizedTopicTags = normalizeTopicTags(topicTags, title);
+  const cleanedSummary =
+    summary && !isSummaryPlaceholder(summary) ? summary : undefined;
   const queries: string[] = [];
 
   // Priority 1: Use AI summary to extract key concepts (most relevant!)
-  if (summary) {
-    const summaryKeywords = extractKeywordsFromSummary(summary);
+  if (cleanedSummary) {
+    const summaryKeywords = extractKeywordsFromSummary(cleanedSummary);
     if (summaryKeywords) {
       queries.push(summaryKeywords);
     }
@@ -246,29 +252,41 @@ function buildOpenverseQueries(title: string, topicTags: string[], summary?: str
 
   // Priority 2: Check for issue-specific overrides
   for (const override of ISSUE_QUERY_OVERRIDES) {
-    if (override.matches.some((match) => normalizedTitle.includes(match) || summary?.toLowerCase().includes(match))) {
+    if (
+      override.matches.some(
+        (match) =>
+          normalizedTitle.includes(match) ||
+          cleanedSummary?.toLowerCase().includes(match)
+      )
+    ) {
       queries.push(...override.queries);
       break;
     }
   }
 
   // Priority 3: Use topic tags
-  for (const topic of topicTags) {
+  for (const topic of normalizedTopicTags) {
     queries.push(...(TOPIC_QUERY_FALLBACKS[topic] ?? []));
   }
 
   // Priority 4: Extract keywords from title (least reliable due to abbreviations)
-  const titleKeywords = title
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((word) => word.length > 2 && !TITLE_STOP_WORDS.has(word) && !/^\d+$/.test(word))
-    .slice(0, 5)
-    .join(" ");
+  if (!cleanedSummary) {
+    const titleKeywords = title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter(
+        (word) =>
+          word.length > 3 &&
+          !TITLE_STOP_WORDS.has(word) &&
+          !/^\d+$/.test(word) &&
+          !["voice", "save", "stop", "care", "fair", "secure"].includes(word)
+      )
+      .slice(0, 4)
+      .join(" ");
 
-  if (titleKeywords) {
-    if (topicTags[0]) {
-      queries.push(`${topicTags[0].toLowerCase()} ${titleKeywords}`);
+    if (titleKeywords && normalizedTopicTags[0]) {
+      queries.push(`${normalizedTopicTags[0].toLowerCase()} ${titleKeywords}`);
     }
   }
 
@@ -299,7 +317,7 @@ function extractKeywordsFromSummary(summary: string): string {
       word.length > 3 && 
       !TITLE_STOP_WORDS.has(word) && 
       !/^\d+$/.test(word) &&
-      !["that", "this", "from", "with", "have", "been", "were", "their", "would", "could", "should"].includes(word)
+      !["that", "this", "from", "with", "have", "been", "were", "their", "would", "could", "should", "people", "american", "americans", "federal", "government"].includes(word)
     );
 
   // Take first 4-5 meaningful words
@@ -314,6 +332,7 @@ function isUsableImage(image: OpenverseImage) {
 
 function scoreImage(image: OpenverseImage) {
   let score = 0;
+  const normalizedTitle = image.title?.toLowerCase() ?? "";
 
   if (image.thumbnail) score += 5;
   if (image.creator) score += 2;
@@ -323,6 +342,18 @@ function scoreImage(image: OpenverseImage) {
   if (image.width && image.height) {
     const ratio = image.width / image.height;
     score += Math.max(0, 3 - Math.abs(1.5 - ratio) * 2);
+  }
+
+  if (
+    /\b(portrait|man|woman|boy|girl|people|person|selfie|headshot|survivor|child|children|family|doctor|nurse)\b/.test(
+      normalizedTitle
+    )
+  ) {
+    score -= 6;
+  }
+
+  if (/\b(building|landscape|bridge|document|classroom|courthouse|hospital|office|street|capitol|forest)\b/.test(normalizedTitle)) {
+    score += 2;
   }
 
   return score;

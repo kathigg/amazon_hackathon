@@ -1,82 +1,187 @@
 /**
- * Seed script for real civic advocacy organizations.
- * Run with: npx ts-node --project tsconfig.json scripts/seed-orgs.ts
- * Or add to package.json: "seed:orgs": "ts-node scripts/seed-orgs.ts"
+ * Seed script for civic advocacy organizations.
+ * Run with: npm run seed:orgs
  */
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
 import { prisma } from "../lib/prisma";
 
-const orgs = [
+const organizations = [
   {
     name: "ACLU (American Civil Liberties Union)",
-    mission: "Defends individual rights and liberties guaranteed by the Constitution and laws of the United States through litigation, advocacy, and community education.",
+    mission:
+      "Defends individual rights and liberties through litigation, policy advocacy, and public education.",
     website: "https://www.aclu.org",
-    topicTags: ["civil rights", "voting rights", "immigration", "privacy", "criminal justice"],
+    topicTags: ["Civil Rights", "Immigration", "Technology"],
     location: "National",
   },
   {
     name: "Sierra Club",
-    mission: "Explores, enjoys, and protects the wild places of the earth; practices and promotes the responsible use of the earth's ecosystems and resources.",
+    mission:
+      "Protects natural resources, public lands, and climate policy through grassroots organizing and national advocacy.",
     website: "https://www.sierraclub.org",
-    topicTags: ["environment", "climate", "energy", "public lands"],
+    topicTags: ["Environment", "Infrastructure"],
     location: "National",
   },
   {
     name: "NAACP",
-    mission: "Works to ensure the political, educational, social, and economic equality of rights of all persons and to eliminate race-based discrimination.",
+    mission:
+      "Advances political, educational, social, and economic equality through organizing, advocacy, and litigation.",
     website: "https://naacp.org",
-    topicTags: ["civil rights", "voting rights", "education", "criminal justice", "healthcare"],
+    topicTags: ["Civil Rights", "Education", "Healthcare"],
     location: "National",
   },
   {
     name: "League of Women Voters",
-    mission: "A nonpartisan organization that empowers voters and defends democracy through advocacy, education, and litigation at the local, state, and national levels.",
+    mission:
+      "Empowers voters and defends democracy through education, advocacy, and civic participation work.",
     website: "https://www.lwv.org",
-    topicTags: ["voting rights", "elections", "democracy", "civic engagement"],
+    topicTags: ["Civil Rights", "Education"],
     location: "National",
   },
   {
     name: "Everytown for Gun Safety",
-    mission: "The largest gun violence prevention organization in America, working to end gun violence and build safer communities.",
+    mission:
+      "Works to reduce gun violence and strengthen public safety through policy advocacy and organizing.",
     website: "https://everytown.org",
-    topicTags: ["gun safety", "public safety", "criminal justice"],
+    topicTags: ["Civil Rights", "Education"],
     location: "National",
   },
   {
     name: "Planned Parenthood Action Fund",
-    mission: "Advocates for access to reproductive health care and sex education, and works to elect candidates who support reproductive rights.",
+    mission:
+      "Advocates for reproductive healthcare access, sex education, and public policy that supports bodily autonomy.",
     website: "https://www.plannedparenthoodaction.org",
-    topicTags: ["healthcare", "reproductive rights", "women's health"],
+    topicTags: ["Healthcare", "Civil Rights"],
     location: "National",
   },
   {
     name: "National Immigration Law Center",
-    mission: "Defends and advances the rights of immigrants with low income through litigation, policy advocacy, and capacity-building.",
+    mission:
+      "Defends and advances the rights of immigrants with low income through litigation, policy advocacy, and movement support.",
     website: "https://www.nilc.org",
-    topicTags: ["immigration", "civil rights", "labor"],
+    topicTags: ["Immigration", "Civil Rights", "Economy"],
     location: "National",
   },
   {
     name: "Feeding America",
-    mission: "A nationwide network of food banks working to end hunger in the United States through food distribution and advocacy.",
+    mission:
+      "Leads a nationwide network of food banks working to reduce hunger through service delivery and policy advocacy.",
     website: "https://www.feedingamerica.org",
-    topicTags: ["food security", "poverty", "social services"],
+    topicTags: ["Agriculture", "Economy", "Housing"],
     location: "National",
   },
   {
     name: "Disability Rights Advocates",
-    mission: "A nonprofit legal center that fights for equal rights and opportunities for people with all types of disabilities.",
+    mission:
+      "Pursues equal rights and full participation for people with disabilities through strategic litigation and advocacy.",
     website: "https://dralegal.org",
-    topicTags: ["disability rights", "civil rights", "healthcare", "education"],
+    topicTags: ["Civil Rights", "Healthcare", "Education"],
     location: "National",
   },
   {
     name: "Center for Responsible Lending",
-    mission: "A nonprofit research and policy organization dedicated to protecting homeownership and family wealth by working to eliminate abusive financial practices.",
+    mission:
+      "Protects homeownership and family wealth by advancing fair lending policy and opposing abusive financial practices.",
     website: "https://www.responsiblelending.org",
-    topicTags: ["economy", "housing", "consumer protection", "financial regulation"],
+    topicTags: ["Economy", "Housing"],
+    location: "National",
+  },
+  {
+    name: "Electronic Frontier Foundation",
+    mission:
+      "Defends digital privacy, free expression, and innovation through impact litigation and technology policy advocacy.",
+    website: "https://www.eff.org",
+    topicTags: ["Technology", "Civil Rights"],
+    location: "National",
+  },
+  {
+    name: "Natural Resources Defense Council",
+    mission:
+      "Uses law, science, and policy advocacy to protect public health and the environment.",
+    website: "https://www.nrdc.org",
+    topicTags: ["Environment", "Healthcare", "Infrastructure"],
+    location: "National",
+  },
+  {
+    name: "Common Cause",
+    mission:
+      "Strengthens democracy through ethics reform, voting access advocacy, and government accountability work.",
+    website: "https://www.commoncause.org",
+    topicTags: ["Civil Rights", "Technology"],
+    location: "National",
+  },
+  {
+    name: "Human Rights Campaign",
+    mission:
+      "Advances equality and inclusion for LGBTQ+ people through policy advocacy, education, and organizing.",
+    website: "https://www.hrc.org",
+    topicTags: ["Civil Rights", "Healthcare", "Education"],
+    location: "National",
+  },
+  {
+    name: "National Low Income Housing Coalition",
+    mission:
+      "Advocates for socially just public policy that ensures people with the lowest incomes have affordable homes.",
+    website: "https://nlihc.org",
+    topicTags: ["Housing", "Economy"],
+    location: "National",
+  },
+  {
+    name: "Union of Concerned Scientists",
+    mission:
+      "Puts rigorous science to work on climate, clean energy, agriculture, and public safety policy.",
+    website: "https://www.ucsusa.org",
+    topicTags: ["Environment", "Agriculture", "Defense"],
+    location: "National",
+  },
+  {
+    name: "Brennan Center for Justice",
+    mission:
+      "Works to reform democracy, defend voting rights, and advance justice system change through research and advocacy.",
+    website: "https://www.brennancenter.org",
+    topicTags: ["Civil Rights", "Technology"],
+    location: "National",
+  },
+  {
+    name: "MomsRising",
+    mission:
+      "Builds grassroots support for economic security, paid leave, education, and healthcare policies that affect families.",
+    website: "https://www.momsrising.org",
+    topicTags: ["Healthcare", "Education", "Economy"],
+    location: "National",
+  },
+  {
+    name: "Center for Democracy & Technology",
+    mission:
+      "Shapes technology policy around privacy, civil liberties, and digital governance.",
+    website: "https://cdt.org",
+    topicTags: ["Technology", "Civil Rights"],
+    location: "National",
+  },
+  {
+    name: "National Farmers Union",
+    mission:
+      "Advocates for family farmers, rural communities, and fair agricultural markets.",
+    website: "https://nfu.org",
+    topicTags: ["Agriculture", "Economy", "Infrastructure"],
+    location: "National",
+  },
+  {
+    name: "Veterans Education Success",
+    mission:
+      "Supports veterans, service members, and military families through higher-education and consumer-protection advocacy.",
+    website: "https://vetsedsuccess.org",
+    topicTags: ["Defense", "Education", "Economy"],
+    location: "National",
+  },
+  {
+    name: "America's Voice",
+    mission:
+      "Builds support for practical immigration reform and a more welcoming immigration system.",
+    website: "https://americasvoice.org",
+    topicTags: ["Immigration", "Civil Rights"],
     location: "National",
   },
 ];
@@ -84,25 +189,21 @@ const orgs = [
 async function main() {
   console.log("Seeding organizations...");
 
-  for (const org of orgs) {
+  for (const organization of organizations) {
     await prisma.organization.upsert({
-      where: { name: org.name },
-      update: {
-        mission: org.mission,
-        website: org.website,
-        topicTags: org.topicTags,
-        location: org.location,
-      },
-      create: org,
+      where: { name: organization.name },
+      update: organization,
+      create: organization,
     });
-    console.log(`  ✓ ${org.name}`);
+
+    console.log(`  ✓ ${organization.name}`);
   }
 
-  console.log("Done seeding organizations.");
+  console.log(`Done seeding ${organizations.length} organizations.`);
   await prisma.$disconnect();
 }
 
-main().catch((e) => {
-  console.error(e);
+main().catch((error) => {
+  console.error(error);
   process.exit(1);
 });

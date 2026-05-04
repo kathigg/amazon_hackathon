@@ -42,10 +42,14 @@ Respond in JSON format:
 {
   "stance": "strong_support" | "possible_support" | "neutral" | "possible_reject" | "strong_reject",
   "confidence": 0.0-1.0,
-  "reasoning": "Brief explanation"
+  "reasoning": "One or two sentences max, citing a specific public statement, official release, vote, or lack of evidence"
 }
 
-If there's no relevant information, return neutral with low confidence.`;
+Rules:
+- Prefer explicit public statements and official releases over vague partisan assumptions.
+- If you mention support or opposition, name the evidence: a vote, a statement, a press release, or a clearly related policy push.
+- If the evidence is weak or indirect, return neutral or possible support/opposition with lower confidence.
+- If there's no relevant information, return neutral with low confidence and say there is no clear public position yet.`;
 
   try {
     const response = await callBedrock(config, prompt);
