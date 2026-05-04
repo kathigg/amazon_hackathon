@@ -121,11 +121,12 @@ export default function ContactPage({ params }: { params: { id: string } }) {
 
   const senators = reps.filter((r) => r.chamber === "Senate");
   const houseMembers = reps.filter((r) => r.chamber === "House of Representatives");
+  const backHref = buildBillHref(params.id, preferredRepIds);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <Link
-        href={`/bill/${params.id}`}
+        href={backHref}
         className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-navy mb-6 transition-colors"
       >
         <ArrowLeft size={16} /> Back to Bill
@@ -214,6 +215,18 @@ export default function ContactPage({ params }: { params: { id: string } }) {
       )}
     </div>
   );
+}
+
+function buildBillHref(billId: string, preferredRepIds: string[]) {
+  if (preferredRepIds.length === 0) {
+    return `/bill/${billId}`;
+  }
+
+  const params = new URLSearchParams({
+    delegation: preferredRepIds.join(","),
+  });
+
+  return `/bill/${billId}?${params.toString()}`;
 }
 
 function RepCard({

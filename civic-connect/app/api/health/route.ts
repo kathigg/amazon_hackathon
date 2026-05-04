@@ -1,43 +1,55 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+const MAX_HEALTH_ATTEMPTS = 3;
+const HEALTH_RETRY_DELAY_MS = 250;
+
+async function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function checkDatabase() {
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= MAX_HEALTH_ATTEMPTS; attempt += 1) {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return { ok: true as const, attempts: attempt };
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < MAX_HEALTH_ATTEMPTS) {
+        await delay(HEALTH_RETRY_DELAY_MS);
+      }
+    }
+  }
+
+  return {
+    ok: false as const,
+    attempts: MAX_HEALTH_ATTEMPTS,
+    error:
+      lastError instanceof Error
+        ? lastError.message
+        : "Database connection failed.",
+  };
+}
+
 export async function GET() {
-  try {
-    // Test database connection
-    await prisma.$connect();
-    
-    // Count records
-    const [billCount, summaryCount, orgCount] = await Promise.all([
-      prisma.bill.count(),
-      prisma.summary.count(),
-      prisma.organization.count(),
-    ]);
+  const database = await checkDatabase();
 
-    // Get a sample bill if any exist
-    const sampleBill = await prisma.bill.findFirst({
-      include: { summary: true }
-    });
-
-    return NextResponse.json({
-      status: "ok",
-      database: "connected",
-      counts: {
-        bills: billCount,
-        summaries: summaryCount,
-        organizations: orgCount,
-      },
-      sampleBill: sampleBill ? {
-        id: sampleBill.id,
-        title: sampleBill.title.substring(0, 60) + "...",
-        hasSummary: !!sampleBill.summary,
-      } : null,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error: any) {
+  if (!database.ok) {
     return NextResponse.json({
       status: "error",
-      message: error.message,
+      message: database.error,
       database: "disconnected",
+      attempts: database.attempts,
     }, { status: 500 });
   }
+
+  return NextResponse.json({
+    status: "ok",
+    database: "connected",
+    attempts: database.attempts,
+    timestamp: new Date().toISOString(),
+  });
 }
