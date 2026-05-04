@@ -1,13 +1,10 @@
-import {
-  BedrockRuntimeClient,
-  ConverseCommand,
-} from "@aws-sdk/client-bedrock-runtime";
+import { callBedrockStructured } from "../bedrock-structured";
+import { isBedrockConfigured } from "../aws-bedrock";
 import {
   canonicalizeValue,
   encodeTerm,
   getActiveTaxonomy,
 } from "./index";
-import { isBedrockConfigured } from "../aws-bedrock";
 
 export interface OrgClassificationInput {
   name?: string;
@@ -24,6 +21,31 @@ export interface OrgClassificationResult {
 
 const MAX_LABELS = 5;
 
+interface ToolOutput {
+  labels: string[];
+  reasoning: string;
+}
+
+const labelsSchema = (vocab: readonly string[]) => ({
+  type: "object",
+  properties: {
+    labels: {
+      type: "array",
+      items: { type: "string", enum: [...vocab] },
+      minItems: 0,
+      maxItems: MAX_LABELS,
+      description:
+        "LoC Policy Area labels, exact spelling/casing from the controlled vocabulary",
+    },
+    reasoning: {
+      type: "string",
+      description: "One sentence explaining the choices",
+    },
+  },
+  required: ["labels", "reasoning"],
+  additionalProperties: false,
+});
+
 export async function classifyOrgMission(
   input: OrgClassificationInput
 ): Promise<OrgClassificationResult> {
@@ -32,12 +54,19 @@ export async function classifyOrgMission(
   }
 
   const def = getActiveTaxonomy();
-  const prompt = buildPrompt(def, input);
+  const prompt = buildClassificationPrompt(def, input);
 
   try {
-    const raw = await callBedrock(prompt);
-    const parsed = parseModelResponse(raw);
-    const validated = parsed.labels
+    const parsed = await callBedrockStructured<ToolOutput>({
+      prompt,
+      toolName: "classify_org",
+      toolDescription:
+        "Pick the LoC Policy Area labels that best describe this advocacy organization",
+      inputSchema: labelsSchema(def.terms),
+      maxTokens: 512,
+      temperature: 0,
+    });
+    const validated = (parsed.labels ?? [])
       .map((label) => canonicalizeValue(def, label))
       .filter((v): v is string => Boolean(v));
     const unique = Array.from(new Set(validated)).slice(0, MAX_LABELS);
@@ -52,7 +81,7 @@ export async function classifyOrgMission(
   }
 }
 
-function buildPrompt(
+function buildClassificationPrompt(
   def: ReturnType<typeof getActiveTaxonomy>,
   input: OrgClassificationInput
 ): string {
@@ -72,50 +101,11 @@ ${input.mission}
 
 Pick the 1-${MAX_LABELS} Policy Areas that best describe this organization's actual focus. Only pick a label if the mission clearly aligns with it. Prefer fewer high-confidence labels over many speculative ones.
 
-You MUST choose ONLY from this exact list of ${def.terms.length} ${def.displayName} labels. Use the EXACT spelling and casing shown. Do not invent new labels, do not paraphrase, and do not use labels from any other taxonomy:
+You MUST choose ONLY from this exact list of ${def.terms.length} ${def.displayName} labels. Use the EXACT spelling and casing shown. Do not invent new labels and do not paraphrase:
 
 ${vocabularyBlock}
 
-Respond with ONLY a JSON object in this exact shape (no markdown, no commentary outside the JSON):
-{
-  "labels": ["<exact label 1>", "<exact label 2>"],
-  "reasoning": "One sentence explaining your choices."
-}
-
-If the mission is too vague or off-topic to classify, return {"labels": [], "reasoning": "<why>"}.`;
-}
-
-interface ParsedResponse {
-  labels: string[];
-  reasoning?: string;
-}
-
-function parseModelResponse(raw: string): ParsedResponse {
-  // Strip optional code-fence wrapper.
-  const stripped = raw.trim().replace(/^```(?:json)?\s*|```$/g, "").trim();
-  // Find the first JSON object in the response.
-  const start = stripped.indexOf("{");
-  const end = stripped.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) {
-    return { labels: [] };
-  }
-  const slice = stripped.slice(start, end + 1);
-  let obj: unknown;
-  try {
-    obj = JSON.parse(slice);
-  } catch {
-    return { labels: [] };
-  }
-  if (!obj || typeof obj !== "object") return { labels: [] };
-  const labelsRaw = (obj as { labels?: unknown }).labels;
-  const reasoning = (obj as { reasoning?: unknown }).reasoning;
-  const labels = Array.isArray(labelsRaw)
-    ? labelsRaw.filter((l): l is string => typeof l === "string")
-    : [];
-  return {
-    labels,
-    reasoning: typeof reasoning === "string" ? reasoning : undefined,
-  };
+If the mission is too vague or off-topic to classify, return an empty labels array with a reasoning explaining why.`;
 }
 
 export interface NormalizationInput {
@@ -134,8 +124,8 @@ export interface NormalizationResult {
 /**
  * Map caller-submitted strings that aren't in the active taxonomy onto the
  * closest valid labels, using the org's name/mission as disambiguation context
- * when available. The model is shown the controlled vocab and instructed to
- * return only matches from it; output is hard-validated post-hoc.
+ * when available. The model is shown the controlled vocab (as an enum in the
+ * tool input schema) and instructed to return only matches from it.
  */
 export async function normalizeUnknownLabels(
   input: NormalizationInput
@@ -151,9 +141,16 @@ export async function normalizeUnknownLabels(
   const prompt = buildNormalizationPrompt(def, input);
 
   try {
-    const raw = await callBedrock(prompt);
-    const parsed = parseModelResponse(raw);
-    const validated = parsed.labels
+    const parsed = await callBedrockStructured<ToolOutput>({
+      prompt,
+      toolName: "normalize_labels",
+      toolDescription:
+        "Map free-form topic labels onto the closest LoC Policy Area labels",
+      inputSchema: labelsSchema(def.terms),
+      maxTokens: 512,
+      temperature: 0,
+    });
+    const validated = (parsed.labels ?? [])
       .map((label) => canonicalizeValue(def, label))
       .filter((v): v is string => Boolean(v));
     const unique = Array.from(new Set(validated)).slice(0, MAX_LABELS);
@@ -202,33 +199,5 @@ You MUST choose ONLY from this exact list of ${def.terms.length} ${def.displayNa
 
 ${vocabularyBlock}
 
-Respond with ONLY a JSON object in this exact shape (no markdown, no commentary outside the JSON):
-{
-  "labels": ["<exact label 1>", "<exact label 2>"],
-  "reasoning": "One sentence explaining the mapping."
-}
-
-If none of the submitted labels have any reasonable match, return {"labels": [], "reasoning": "<why>"}.`;
-}
-
-async function callBedrock(prompt: string): Promise<string> {
-  const client = new BedrockRuntimeClient({
-    region: process.env.AWS_REGION || "us-east-1",
-  });
-  const modelId =
-    process.env.AWS_BEDROCK_MODEL ||
-    "us.anthropic.claude-haiku-4-5-20251001-v1:0";
-  const command = new ConverseCommand({
-    modelId,
-    messages: [{ role: "user", content: [{ text: prompt }] }],
-    inferenceConfig: { maxTokens: 512, temperature: 0 },
-  });
-  const response = await client.send(command);
-  const textBlock = response.output?.message?.content?.find(
-    (item: { text?: unknown }) => "text" in item && typeof item.text === "string"
-  );
-  if (!textBlock || !("text" in textBlock)) {
-    throw new Error("Bedrock returned no text content");
-  }
-  return textBlock.text as string;
+If none of the submitted labels have any reasonable match, return an empty labels array with a reasoning explaining why.`;
 }

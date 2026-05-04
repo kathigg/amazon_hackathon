@@ -1,12 +1,18 @@
 /**
  * Fetch a bill from DB if cached, otherwise pull from Congress.gov,
- * summarize with Gemini, store, and return. Also increments viewCount.
+ * summarize with Bedrock Haiku, store, and return. Also increments viewCount.
+ *
+ * Tag enrichment: when a bill's `topicTagsSource` is anything other than "llm"
+ * (including null for legacy bills), we run `classifyBillFromTitle` to enrich
+ * the API anchor with up to 2 additional LoC labels. This runs in parallel
+ * with summary generation when both are needed.
  */
 import { prisma } from "./prisma";
 import { fetchBillText, fetchCosponsors } from "./congress";
 import { summarizeBill } from "./summarize";
 import { preprocessBillText } from "./bill-text";
 import { classifyBillTaxonomy } from "./taxonomy/classify";
+import { classifyBillFromTitle } from "./taxonomy/classify-bill-llm";
 import { parseTerm } from "./taxonomy";
 import { fetchBillVotes } from "./votes";
 import { fetchBestOpenverseBillImage, getNoImageAttemptMetadata } from "./openverse";
@@ -32,24 +38,27 @@ export async function getBillOrFetch(billId: string) {
       data: { viewCount: { increment: 1 } },
     }).catch(() => {});
 
-    // Generate summary on-demand if missing
-    if (!existing.summary) {
-      await generateAndStoreSummary(existing.id, existing.title, existing.congress, existing.type, existing.number);
-      
-      // After generating summary, fetch image using the summary
-      const updatedBill = await prisma.bill.findUnique({
-        where: { id: billId },
-        include: { summary: true },
-      });
-      
-      if (updatedBill?.summary && !updatedBill.imageFetchedAt) {
-        await fetchAndStoreOpenverseImage(
-          updatedBill.id,
-          updatedBill.title,
-          updatedBill.topicTags,
-          updatedBill.summary.plainLanguage
-        );
-      }
+    // Run summary + tag enrichment in parallel when both are needed.
+    const needsSummary = !existing.summary;
+    const needsEnrich = existing.topicTagsSource !== "llm";
+
+    let enrichedTags: string[] | null = null;
+    if (needsSummary || needsEnrich) {
+      const [, enrichResult] = await Promise.all([
+        needsSummary
+          ? generateAndStoreSummary(
+              existing.id,
+              existing.title,
+              existing.congress,
+              existing.type,
+              existing.number
+            )
+          : Promise.resolve(null),
+        needsEnrich
+          ? enrichAndStoreTags(existing.id, existing.title, existing.topicTags)
+          : Promise.resolve(null),
+      ]);
+      if (enrichResult) enrichedTags = enrichResult;
     }
 
     // Fetch stances on-demand if missing (bill was ingested before stance data was available)
@@ -58,13 +67,22 @@ export async function getBillOrFetch(billId: string) {
     }
 
     // Retry image fetch if it failed before and we now have a summary
-    if (!existing.imageFetchedAt && existing.summary) {
-      await fetchAndStoreOpenverseImage(
-        existing.id,
-        existing.title,
-        existing.topicTags,
-        existing.summary.plainLanguage
-      );
+    const tagsForImage = enrichedTags ?? existing.topicTags;
+    if (!existing.imageFetchedAt) {
+      const updatedBill = needsSummary
+        ? await prisma.bill.findUnique({
+            where: { id: billId },
+            select: { summary: true },
+          })
+        : { summary: existing.summary };
+      if (updatedBill?.summary) {
+        await fetchAndStoreOpenverseImage(
+          existing.id,
+          existing.title,
+          tagsForImage,
+          updatedBill.summary.plainLanguage
+        );
+      }
     }
 
     return prisma.bill.findUnique({
@@ -91,7 +109,7 @@ export async function getBillOrFetch(billId: string) {
   if (!bill) return null;
 
   const policyArea: string | null = bill.policyArea?.name ?? null;
-  const { topicTags } = classifyBillTaxonomy({ policyArea }, bill.title ?? "");
+  const apiClassification = classifyBillTaxonomy({ policyArea }, bill.title ?? "");
   const s = bill.sponsors?.[0];
   const sponsor = s
     ? (s.fullName ?? (`${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || "Unknown"))
@@ -108,27 +126,31 @@ export async function getBillOrFetch(billId: string) {
       sponsor,
       status,
       introducedAt: new Date(bill.introducedDate ?? Date.now()),
-      topicTags,
+      topicTags: apiClassification.topicTags,
+      topicTagsSource: apiClassification.source,
       fullTextUrl: null,
       imageFetchedAt: null,
       viewCount: 1,
     },
   });
 
-  // Summarize first (so we can use the summary for image search)
-  await generateAndStoreSummary(created.id, created.title, congress, type, number);
-  
-  // Get the summary we just created
+  // Summary + tag enrichment in parallel.
+  const [, enrichedTags] = await Promise.all([
+    generateAndStoreSummary(created.id, created.title, congress, type, number),
+    enrichAndStoreTags(created.id, created.title, apiClassification.topicTags),
+  ]);
+
+  // Get the freshly written summary (parallel call landed it).
   const billWithSummary = await prisma.bill.findUnique({
     where: { id: created.id },
     include: { summary: true },
   });
-  
-  // Fetch image using the summary
+
+  // Image fetch uses the (possibly enriched) tag set + summary.
   await fetchAndStoreOpenverseImage(
     created.id,
     created.title,
-    created.topicTags,
+    enrichedTags ?? created.topicTags,
     billWithSummary?.summary?.plainLanguage
   );
 
@@ -192,10 +214,53 @@ async function generateAndStoreSummary(
     const summary = await summarizeBill(title, billText);
     await prisma.summary.upsert({
       where: { billId },
-      update: { plainLanguage: summary.plainLanguage, keyProvisions: summary.keyProvisions, whyItMatters: summary.whyItMatters },
-      create: { billId, plainLanguage: summary.plainLanguage, keyProvisions: summary.keyProvisions, whyItMatters: summary.whyItMatters },
+      update: {
+        plainLanguage: summary.plainLanguage,
+        keyProvisions: summary.keyProvisions,
+        whyItMatters: summary.whyItMatters,
+        aiProvider: summary.aiProvider,
+        aiModel: summary.aiModel,
+      },
+      create: {
+        billId,
+        plainLanguage: summary.plainLanguage,
+        keyProvisions: summary.keyProvisions,
+        whyItMatters: summary.whyItMatters,
+        aiProvider: summary.aiProvider,
+        aiModel: summary.aiModel,
+      },
     });
   } catch { /* non-fatal */ }
+}
+
+/**
+ * LLM-enrich a bill's tags. Uses the first existing tag as the API anchor
+ * (always preserved), asks Haiku for up to 2 additional LoC labels.
+ *
+ * Returns the new encoded tag array on success, null on failure (caller can
+ * fall back to the existing tags). Always writes `topicTagsSource = "llm"` on
+ * success; on failure the row is left untouched and the next view will retry.
+ */
+async function enrichAndStoreTags(
+  billId: string,
+  title: string,
+  currentTags: string[]
+): Promise<string[] | null> {
+  try {
+    const apiAnchor = parseTerm(currentTags[0] ?? "")?.value ?? null;
+    const result = await classifyBillFromTitle({ title, apiAnchor });
+    if (result.source !== "llm" || result.topicTags.length === 0) {
+      return null;
+    }
+    await prisma.bill.update({
+      where: { id: billId },
+      data: { topicTags: result.topicTags, topicTagsSource: "llm" },
+    });
+    return result.topicTags;
+  } catch (e) {
+    console.error("[enrichAndStoreTags] error:", e);
+    return null;
+  }
 }
 
 async function fetchAndStoreOpenverseImage(

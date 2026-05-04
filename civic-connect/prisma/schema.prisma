@@ -17,6 +17,7 @@ model Bill {
   status       String
   introducedAt DateTime
   topicTags    String[]
+  topicTagsSource String?  // "api" | "llm" | "keyword" | "none" | null (legacy)
   fullTextUrl  String?
   imageUrl     String?
   imageThumbnailUrl String?

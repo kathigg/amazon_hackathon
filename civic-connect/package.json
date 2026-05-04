@@ -13,6 +13,7 @@
     "seed:reps": "tsx scripts/seed-representatives.ts",
     "regenerate:images": "tsx scripts/regenerate-images.ts",
     "backfill:taxonomy": "tsx scripts/backfill-policy-areas.ts",
+    "enrich:tags": "tsx scripts/enrich-bill-tags.ts",
     "test:db": "tsx scripts/test-db.ts",
     "test:keys": "tsx scripts/test-keys.ts"
   },

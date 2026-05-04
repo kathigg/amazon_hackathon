@@ -27,7 +27,7 @@ async function main() {
       const result = classifyBillTaxonomy(detail, bill.title);
       await prisma.bill.update({
         where: { id: bill.id },
-        data: { topicTags: result.topicTags },
+        data: { topicTags: result.topicTags, topicTagsSource: result.source },
       });
       counts[result.source]++;
       console.log(`  [${result.source.padEnd(7)}] ${bill.id.padEnd(20)} ${result.topicTags.join(", ") || "(empty)"}`);

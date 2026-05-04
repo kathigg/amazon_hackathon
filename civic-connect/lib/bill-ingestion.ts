@@ -17,7 +17,8 @@ export async function fetchBillsForMetadataIngest(
 export async function upsertBillMetadataFromCongress(bill: CongressBill) {
   const billId = `${bill.type.toLowerCase()}-${bill.number}-${bill.congress}`;
   const detail = await fetchBillDetail(bill.congress, bill.type, bill.number);
-  const { topicTags } = classifyBillTaxonomy(detail, bill.title);
+  const classification = classifyBillTaxonomy(detail, bill.title);
+  const { topicTags } = classification;
   const sponsor = detail?.sponsor ?? bill.sponsors?.[0]?.fullName ?? "Unknown";
   const status = bill.latestAction?.text ?? "Unknown";
   const introducedAt = parseIntroducedDate(bill.introducedDate);
@@ -38,6 +39,7 @@ export async function upsertBillMetadataFromCongress(bill: CongressBill) {
       status,
       introducedAt,
       topicTags,
+      topicTagsSource: classification.source,
       breakingAt,
     },
     create: {
@@ -50,6 +52,7 @@ export async function upsertBillMetadataFromCongress(bill: CongressBill) {
       status,
       introducedAt,
       topicTags,
+      topicTagsSource: classification.source,
       fullTextUrl: null,
       breakingAt: null,
     },
