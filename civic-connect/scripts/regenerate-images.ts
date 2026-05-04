@@ -6,6 +6,7 @@
 
 import { prisma } from "../lib/prisma";
 import { fetchBestOpenverseBillImage, getNoImageAttemptMetadata } from "../lib/openverse";
+import { parseTerm } from "../lib/taxonomy";
 import dotenv from "dotenv";
 
 dotenv.config({ path: ".env.local" });
@@ -62,7 +63,7 @@ async function regenerateImages() {
         } else {
           await prisma.bill.update({
             where: { id: bill.id },
-            data: getNoImageAttemptMetadata(bill.topicTags[0]?.toLowerCase() ?? null),
+            data: getNoImageAttemptMetadata(parseTerm(bill.topicTags[0])?.value.toLowerCase() ?? null),
           });
           console.log(`  ⚠️  No image found`);
           failed++;

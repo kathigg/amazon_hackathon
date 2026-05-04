@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  encodeTerm,
+  filterPredicateForTopic,
+  parseTerm,
+} from "@/lib/taxonomy";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -8,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   const orgs = await prisma.organization.findMany({
     where: {
-      ...(topic && { topicTags: { has: topic } }),
+      ...(topic && { topicTags: { hasSome: filterPredicateForTopic(topic) } }),
       ...(location && { location: { contains: location, mode: "insensitive" } }),
     },
     include: {
@@ -32,8 +37,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "name and mission are required" }, { status: 400 });
   }
 
+  // Normalize incoming tags: accept either raw LoC names or pre-encoded values,
+  // store them in encoded form so org registrations match seeded orgs.
+  const incoming: string[] = Array.isArray(topicTags) ? topicTags : [];
+  const encodedTags = Array.from(
+    new Set(
+      incoming
+        .map((raw) => parseTerm(raw))
+        .filter((t): t is NonNullable<ReturnType<typeof parseTerm>> => Boolean(t))
+        .map((t) => encodeTerm(t.taxonomy, t.value))
+    )
+  );
+
   const org = await prisma.organization.create({
-    data: { name, mission, website, topicTags: topicTags ?? [], location },
+    data: { name, mission, website, topicTags: encodedTags, location },
   });
 
   return NextResponse.json(org, { status: 201 });

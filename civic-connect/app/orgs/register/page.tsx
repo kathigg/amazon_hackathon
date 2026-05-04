@@ -1,9 +1,11 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { TOPIC_TAGS } from "@/lib/topics";
+import { getActiveTaxonomy } from "@/lib/taxonomy";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+
+const ACTIVE_TAXONOMY = getActiveTaxonomy();
 
 export default function RegisterOrgPage() {
   const router = useRouter();
@@ -101,20 +103,29 @@ export default function RegisterOrgPage() {
 
         <div>
           <label className="block text-sm font-semibold text-navy mb-3">Issue Areas</label>
-          <div className="flex flex-wrap gap-2">
-            {TOPIC_TAGS.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => toggleTag(tag)}
-                className={`tag px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
-                  form.topicTags.includes(tag)
-                    ? "bg-navy text-white border-navy"
-                    : "border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
-                }`}
-              >
-                {tag}
-              </button>
+          <div className="space-y-4">
+            {ACTIVE_TAXONOMY.groups.map((group) => (
+              <div key={group.label}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400 mb-2">
+                  {group.label}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {group.terms.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      className={`tag px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+                        form.topicTags.includes(tag)
+                          ? "bg-navy text-white border-navy"
+                          : "border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </div>

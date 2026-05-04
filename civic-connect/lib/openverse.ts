@@ -1,3 +1,5 @@
+import { getActiveTaxonomy, parseTerm } from "./taxonomy";
+
 const OPENVERSE_IMAGES_ENDPOINT = "https://api.openverse.org/v1/images/";
 const OPENVERSE_USER_AGENT = "CivicConnect/0.1 (Openverse bill imagery)";
 
@@ -129,20 +131,12 @@ const ISSUE_QUERY_OVERRIDES: Array<{
   },
 ] as const;
 
-const TOPIC_QUERY_FALLBACKS: Record<string, string[]> = {
-  Healthcare: ["healthcare hospital medicine"],
-  Economy: ["economy financial district"],
-  Environment: ["environment conservation landscape"],
-  Education: ["students classroom school"],
-  Immigration: ["immigration passport border crossing"],
-  Defense: ["military service members"],
-  Infrastructure: ["bridge infrastructure highway"],
-  "Civil Rights": ["civil rights march protest"],
-  Technology: ["technology data network"],
-  Housing: ["affordable housing apartment buildings"],
-  Agriculture: ["farm fields agriculture"],
-  "Foreign Policy": ["international diplomacy flags"],
-};
+function imageQueriesForTopic(topic: string): readonly string[] {
+  const parsed = parseTerm(topic);
+  if (!parsed) return [];
+  const def = getActiveTaxonomy();
+  return def.imageQueries[parsed.value] ?? [];
+}
 
 export async function fetchBestOpenverseBillImage({
   title,
@@ -254,7 +248,7 @@ function buildOpenverseQueries(title: string, topicTags: string[], summary?: str
 
   // Priority 3: Use topic tags
   for (const topic of topicTags) {
-    queries.push(...(TOPIC_QUERY_FALLBACKS[topic] ?? []));
+    queries.push(...imageQueriesForTopic(topic));
   }
 
   // Priority 4: Extract keywords from title (least reliable due to abbreviations)
@@ -267,8 +261,11 @@ function buildOpenverseQueries(title: string, topicTags: string[], summary?: str
     .join(" ");
 
   if (titleKeywords) {
-    if (topicTags[0]) {
-      queries.push(`${topicTags[0].toLowerCase()} ${titleKeywords}`);
+    const primaryTopic = topicTags[0]
+      ? parseTerm(topicTags[0])?.value.toLowerCase()
+      : undefined;
+    if (primaryTopic) {
+      queries.push(`${primaryTopic} ${titleKeywords}`);
     }
   }
 

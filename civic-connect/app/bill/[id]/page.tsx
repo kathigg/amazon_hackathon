@@ -15,6 +15,7 @@ import BillIssueVisual from "@/components/BillIssueVisual";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { formatOpenverseLicense } from "@/lib/openverse";
+import { formatTerm, parseTerm } from "@/lib/taxonomy";
 
 export const dynamic = "force-dynamic";
 
@@ -113,15 +114,18 @@ export default async function BillDetailPage({
             <div className="grid gap-6 md:grid-cols-[1fr_270px] md:items-start">
               <div>
                 <div className="flex flex-wrap gap-2 mb-4">
-                  {bill.topicTags.map((tag: string) => (
-                    <Link
-                      key={tag}
-                      href={`/bills?topic=${encodeURIComponent(tag)}`}
-                      className="tag bg-blue-50 text-civic-blue hover:bg-civic-blue hover:text-white transition-colors"
-                    >
-                      {tag}
-                    </Link>
-                  ))}
+                  {bill.topicTags.map((tag: string) => {
+                    const human = parseTerm(tag)?.value ?? tag;
+                    return (
+                      <Link
+                        key={tag}
+                        href={`/bills?topic=${encodeURIComponent(human)}`}
+                        className="tag bg-blue-50 text-civic-blue hover:bg-civic-blue hover:text-white transition-colors"
+                      >
+                        {formatTerm(tag)}
+                      </Link>
+                    );
+                  })}
                 </div>
 
                 <span className="text-xs font-bold uppercase tracking-widest text-gray-400">

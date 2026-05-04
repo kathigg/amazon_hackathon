@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { fetchBillDetail, fetchRecentBills, type CongressBill } from "./congress";
 import { classifyBillTaxonomy } from "./taxonomy/classify";
+import { parseTerm } from "./taxonomy";
 import { isMajorBillAction } from "./breaking-bills";
 import { fetchBestOpenverseBillImage, getNoImageAttemptMetadata } from "./openverse";
 
@@ -84,7 +85,7 @@ async function refreshBillImage(
     const image = await fetchBestOpenverseBillImage({ title, topicTags });
     await prisma.bill.update({
       where: { id: billId },
-      data: image ?? getNoImageAttemptMetadata(topicTags[0]?.toLowerCase() ?? null),
+      data: image ?? getNoImageAttemptMetadata(parseTerm(topicTags[0])?.value.toLowerCase() ?? null),
     });
   } catch {}
 }

@@ -5,6 +5,7 @@ import {
   getBreakingExpiresAt,
   getBreakingKey,
 } from "@/lib/breaking-bills";
+import { formatTerm } from "@/lib/taxonomy";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export async function GET() {
         id: bill.id,
         title: bill.title,
         status: bill.status,
-        topic: bill.topicTags[0] ?? "General",
+        topic: bill.topicTags[0] ? formatTerm(bill.topicTags[0]) : "General",
         summary: bill.summary?.plainLanguage ?? null,
         breakingAt: bill.breakingAt.toISOString(),
         expiresAt: getBreakingExpiresAt(bill.breakingAt).toISOString(),

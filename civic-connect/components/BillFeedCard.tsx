@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import BillIssueVisual from "@/components/BillIssueVisual";
+import { formatTerm } from "@/lib/taxonomy";
 
 interface BillFeedCardProps {
   id: string;
@@ -39,7 +40,7 @@ export default function BillFeedCard({
   imageLicenseVersion,
 }: BillFeedCardProps) {
   const timeAgo = getTimeAgo(introducedAt);
-  const primaryTopic = topicTags[0] ?? "General";
+  const primaryTopic = topicTags[0] ? formatTerm(topicTags[0]) : "General";
 
   return (
     <Link
@@ -76,7 +77,7 @@ export default function BillFeedCard({
                 key={tag}
                 className="border border-black/10 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-navy/60"
               >
-                {tag}
+                {formatTerm(tag)}
               </span>
             ))}
             {topicTags.length > 3 && (

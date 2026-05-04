@@ -7,6 +7,7 @@ import { fetchBillText, fetchCosponsors } from "./congress";
 import { summarizeBill } from "./summarize";
 import { preprocessBillText } from "./bill-text";
 import { classifyBillTaxonomy } from "./taxonomy/classify";
+import { parseTerm } from "./taxonomy";
 import { fetchBillVotes } from "./votes";
 import { fetchBestOpenverseBillImage, getNoImageAttemptMetadata } from "./openverse";
 
@@ -207,7 +208,7 @@ async function fetchAndStoreOpenverseImage(
     const image = await fetchBestOpenverseBillImage({ title, topicTags, summary });
     await prisma.bill.update({
       where: { id: billId },
-      data: image ?? getNoImageAttemptMetadata(topicTags[0]?.toLowerCase() ?? null),
+      data: image ?? getNoImageAttemptMetadata(parseTerm(topicTags[0])?.value.toLowerCase() ?? null),
     });
   } catch {}
 }

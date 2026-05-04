@@ -4,7 +4,13 @@ import { getCurrentUserId } from "@/lib/user-tracking";
 import { getPersonalizedBills } from "@/lib/recommendations";
 import BillFeedCard from "@/components/BillFeedCard";
 import { BillFeedSort, getBillsBySort } from "@/lib/bill-feed";
-import { TOPIC_TAGS } from "@/lib/topics";
+import {
+  filterPredicateForTopic,
+  formatTerm,
+  getActiveTaxonomy,
+} from "@/lib/taxonomy";
+
+const ACTIVE_TAXONOMY = getActiveTaxonomy();
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +44,7 @@ async function getBills({
       title: { contains: q, mode: "insensitive" as const },
     }),
     ...(topic && {
-      topicTags: { has: topic },
+      topicTags: { hasSome: filterPredicateForTopic(topic) },
     }),
   };
 
@@ -186,7 +192,7 @@ export default async function BillsPage({
                     Desks
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {TOPIC_TAGS.slice(0, 6).map((topic) => (
+                    {ACTIVE_TAXONOMY.prioritizedTerms.map((topic) => (
                       <Link
                         key={topic}
                         href={`/bills?topic=${encodeURIComponent(topic)}`}
@@ -196,6 +202,33 @@ export default async function BillsPage({
                       </Link>
                     ))}
                   </div>
+                  <details className="mt-3 group">
+                    <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45 hover:text-navy">
+                      Browse all desks <span className="inline-block transition-transform group-open:rotate-180">▾</span>
+                    </summary>
+                    <div className="mt-3 space-y-3">
+                      {ACTIVE_TAXONOMY.groups.map((group) => (
+                        <div key={group.label}>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-navy/40 mb-1.5">
+                            {group.label}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {group.terms
+                              .filter((t) => !ACTIVE_TAXONOMY.prioritizedTerms.includes(t))
+                              .map((topic) => (
+                                <Link
+                                  key={topic}
+                                  href={`/bills?topic=${encodeURIComponent(topic)}`}
+                                  className="border border-black/10 bg-white px-2 py-1 text-[10px] font-medium tracking-wide text-navy/60 transition-colors hover:border-navy hover:text-navy"
+                                >
+                                  {topic}
+                                </Link>
+                              ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
                 </div>
               </div>
             </aside>
@@ -282,7 +315,7 @@ export default async function BillsPage({
                   className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
                 >
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
-                    {index + 1 < 10 ? `0${index + 1}` : index + 1} · {bill.topicTags[0] ?? "General"}
+                    {index + 1 < 10 ? `0${index + 1}` : index + 1} · {bill.topicTags[0] ? formatTerm(bill.topicTags[0]) : "General"}
                   </p>
                   <h2 className="mt-2 font-display text-2xl leading-tight text-navy">
                     {bill.title}

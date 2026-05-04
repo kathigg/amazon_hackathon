@@ -7,7 +7,9 @@ import BillFeedCard from "@/components/BillFeedCard";
 import BillLookup from "@/components/BillLookup";
 import BillIssueVisual from "@/components/BillIssueVisual";
 import CongressVisualization from "@/components/CongressVisualization";
-import { TOPIC_TAGS } from "@/lib/topics";
+import { formatTerm, getActiveTaxonomy } from "@/lib/taxonomy";
+
+const ACTIVE_TAXONOMY = getActiveTaxonomy();
 
 export const dynamic = "force-dynamic";
 
@@ -132,7 +134,7 @@ export default async function HomePage() {
                           className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
                         >
                           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
-                            {bill.topicTags[0] ?? "General"} · {bill.viewCount.toLocaleString()} readers
+                            {bill.topicTags[0] ? formatTerm(bill.topicTags[0]) : "General"} · {bill.viewCount.toLocaleString()} readers
                           </p>
                           <h2 className="mt-2 font-display text-3xl leading-tight text-navy">
                             {bill.title}
@@ -210,7 +212,7 @@ export default async function HomePage() {
                             className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
                           >
                             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
-                              {bill.topicTags[0] ?? "General"}
+                              {bill.topicTags[0] ? formatTerm(bill.topicTags[0]) : "General"}
                             </p>
                             <h3 className="mt-2 font-display text-2xl leading-tight text-navy">
                               {bill.title}
@@ -263,15 +265,24 @@ export default async function HomePage() {
                   <h2 className="mt-3 font-display text-3xl text-navy">
                     Track a policy beat
                   </h2>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {TOPIC_TAGS.map((topic) => (
-                      <Link
-                        key={topic}
-                        href={`/bills?topic=${encodeURIComponent(topic)}`}
-                        className="border border-black/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-navy/70 transition-colors hover:border-navy hover:text-navy"
-                      >
-                        {topic}
-                      </Link>
+                  <div className="mt-5 space-y-4">
+                    {ACTIVE_TAXONOMY.groups.map((group) => (
+                      <div key={group.label}>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-navy/40 mb-2">
+                          {group.label}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {group.terms.map((topic) => (
+                            <Link
+                              key={topic}
+                              href={`/bills?topic=${encodeURIComponent(topic)}`}
+                              className="border border-black/10 px-2.5 py-1.5 text-[11px] font-medium tracking-wide text-navy/70 transition-colors hover:border-navy hover:text-navy"
+                            >
+                              {topic}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>

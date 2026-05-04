@@ -1,5 +1,6 @@
 import { ExternalLink, Calendar } from "lucide-react";
 import RsvpButton from "./RsvpButton";
+import { formatTerm } from "@/lib/taxonomy";
 
 interface Event {
   id: string;
@@ -48,7 +49,7 @@ export default function OrgCard({ org }: { org: Org }) {
       <div className="flex flex-wrap gap-1">
         {org.topicTags.slice(0, 3).map((tag) => (
           <span key={tag} className="tag bg-blue-50 text-civic-blue text-xs px-2 py-0.5">
-            {tag}
+            {formatTerm(tag)}
           </span>
         ))}
       </div>

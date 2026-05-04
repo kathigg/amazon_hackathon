@@ -1,13 +1,20 @@
 import { prisma } from "@/lib/prisma";
-import { TOPIC_TAGS } from "@/lib/topics";
+import {
+  filterPredicateForTopic,
+  getActiveTaxonomy,
+} from "@/lib/taxonomy";
 import Link from "next/link";
 import OrgCard from "@/components/OrgCard";
 
 export const dynamic = "force-dynamic";
 
+const ACTIVE_TAXONOMY = getActiveTaxonomy();
+
 async function getOrgs(topic?: string) {
   return prisma.organization.findMany({
-    where: topic ? { topicTags: { has: topic } } : undefined,
+    where: topic
+      ? { topicTags: { hasSome: filterPredicateForTopic(topic) } }
+      : undefined,
     include: {
       events: {
         where: { date: { gte: new Date() } },
@@ -25,6 +32,7 @@ export default async function OrgsPage({
   searchParams: { topic?: string };
 }) {
   const orgs = await getOrgs(searchParams.topic);
+  const selected = searchParams.topic;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -38,26 +46,37 @@ export default async function OrgsPage({
         </Link>
       </div>
 
-      {/* Topic filters */}
-      <div className="flex flex-wrap gap-2 mb-10">
-        <Link
-          href="/orgs"
-          className={`tag px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
-            !searchParams.topic ? "bg-navy text-white border-navy" : "border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
-          }`}
-        >
-          All
-        </Link>
-        {TOPIC_TAGS.map((tag) => (
+      {/* Topic filters — grouped by family */}
+      <div className="mb-10 space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
-            key={tag}
-            href={`/orgs?topic=${encodeURIComponent(tag)}`}
+            href="/orgs"
             className={`tag px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
-              searchParams.topic === tag ? "bg-navy text-white border-navy" : "border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
+              !selected ? "bg-navy text-white border-navy" : "border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
             }`}
           >
-            {tag}
+            All
           </Link>
+        </div>
+        {ACTIVE_TAXONOMY.groups.map((group) => (
+          <div key={group.label}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400 mb-2">
+              {group.label}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {group.terms.map((tag) => (
+                <Link
+                  key={tag}
+                  href={`/orgs?topic=${encodeURIComponent(tag)}`}
+                  className={`tag px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+                    selected === tag ? "bg-navy text-white border-navy" : "border-gray-300 text-gray-600 hover:border-navy hover:text-navy"
+                  }`}
+                >
+                  {tag}
+                </Link>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 

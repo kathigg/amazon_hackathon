@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ExternalLink, Calendar, Users, MapPin, Phone, Globe } from "lucide-react";
 import clsx from "clsx";
+import { formatTerm } from "@/lib/taxonomy";
 
 interface Org {
   id: string;
@@ -172,7 +173,7 @@ export default function ActionCard({
                           key={tag}
                           className="tag bg-civic-blue/10 text-civic-blue text-xs px-2 py-0.5"
                         >
-                          {tag}
+                          {formatTerm(tag)}
                         </span>
                       ))}
                     </div>
