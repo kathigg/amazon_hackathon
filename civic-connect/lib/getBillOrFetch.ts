@@ -6,7 +6,7 @@ import { prisma } from "./prisma";
 import { fetchBillText, fetchCosponsors } from "./congress";
 import { summarizeBill } from "./summarize";
 import { preprocessBillText } from "./bill-text";
-import { inferTopics } from "./topics";
+import { classifyBillTaxonomy } from "./taxonomy/classify";
 import { fetchBillVotes } from "./votes";
 import { fetchBestOpenverseBillImage, getNoImageAttemptMetadata } from "./openverse";
 
@@ -89,7 +89,8 @@ export async function getBillOrFetch(billId: string) {
   const bill = data.bill;
   if (!bill) return null;
 
-  const topicTags = inferTopics(bill.title ?? "");
+  const policyArea: string | null = bill.policyArea?.name ?? null;
+  const { topicTags } = classifyBillTaxonomy({ policyArea }, bill.title ?? "");
   const s = bill.sponsors?.[0];
   const sponsor = s
     ? (s.fullName ?? (`${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || "Unknown"))

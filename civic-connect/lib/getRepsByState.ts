@@ -1,17 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-
-async function zipToState(zip: string): Promise<{ stateCode: string; stateName: string } | null> {
-  const res = await fetch(`https://api.zippopotam.us/us/${zip}`);
-  if (!res.ok) return null;
-  const data = await res.json();
-  const place = data.places?.[0];
-  if (!place) return null;
-  return {
-    stateCode: place["state abbreviation"],
-    stateName: place["state"],
-  };
-}
+import { prisma } from "./prisma";
 
 const PARTY_FULL: Record<string, string> = {
   D: "Democratic",
@@ -24,25 +11,26 @@ const CHAMBER_FULL: Record<string, string> = {
   house: "House of Representatives",
 };
 
-export async function GET(req: NextRequest) {
-  const zip = req.nextUrl.searchParams.get("zip");
-  if (!zip || zip.length !== 5) {
-    return NextResponse.json({ error: "Valid 5-digit ZIP required" }, { status: 400 });
-  }
+export interface RepSummary {
+  bioguideId: string;
+  name: string;
+  party: string;
+  chamber: string;
+  state: string;
+  office: string;
+  photoUrl?: string;
+  websiteUrl?: string;
+  phone?: string;
+  officeAddress?: string;
+}
 
-  const location = await zipToState(zip);
-  if (!location) {
-    return NextResponse.json({ error: "Could not resolve ZIP code to a state." }, { status: 404 });
-  }
-
-  const { stateCode, stateName } = location;
-
+export async function getRepsByStateName(stateName: string): Promise<RepSummary[]> {
   const dbReps = await prisma.representative.findMany({
     where: { state: stateName },
     orderBy: [{ chamber: "asc" }, { lastName: "asc" }],
   });
 
-  const reps = dbReps.map((r) => {
+  const reps: RepSummary[] = dbReps.map((r) => {
     const chamber = CHAMBER_FULL[r.chamber] ?? r.chamber;
     const party = PARTY_FULL[r.party] ?? "Unknown";
     const districtLabel =
@@ -53,6 +41,7 @@ export async function GET(req: NextRequest) {
       name: `${r.firstName} ${r.lastName}`.trim(),
       party,
       chamber,
+      state: r.state,
       office: `${stateName} · ${chamber}${districtLabel}`,
       photoUrl: r.photoUrl ?? undefined,
       websiteUrl: r.websiteUrl ?? undefined,
@@ -67,5 +56,5 @@ export async function GET(req: NextRequest) {
     return a.name.localeCompare(b.name);
   });
 
-  return NextResponse.json({ reps, stateName, stateCode });
+  return reps;
 }

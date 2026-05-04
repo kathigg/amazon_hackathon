@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { getBillOrFetch } from "@/lib/getBillOrFetch";
+import { getViewerLocation } from "@/lib/viewer-location";
+import { getRepsByStateName, type RepSummary } from "@/lib/getRepsByState";
+import { getRepsByZip } from "@/lib/getRepsByZip";
 import StanceCard from "@/components/StanceCard";
 import ActionCard from "@/components/ActionCard";
 import FeedbackButton from "@/components/FeedbackButton";
@@ -50,8 +53,10 @@ function StatusIcon({ status }: { status: string }) {
 
 export default async function BillDetailPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams: { devState?: string; devPostal?: string };
 }) {
   const bill = await getBill(params.id);
   if (!bill) {
@@ -70,6 +75,17 @@ export default async function BillDetailPage({
   }
 
   const { orgs, events } = await getRelatedOrgsAndEvents(bill.topicTags);
+  const viewerLocation = getViewerLocation(
+    searchParams.devState ?? null,
+    searchParams.devPostal ?? null,
+  );
+  let viewerReps: RepSummary[] = [];
+  if (viewerLocation.postalCode) {
+    viewerReps = await getRepsByZip(viewerLocation.postalCode);
+  }
+  if (viewerReps.length === 0 && viewerLocation.stateName) {
+    viewerReps = await getRepsByStateName(viewerLocation.stateName);
+  }
   type StanceWithCosponsors = {
     id: string; billId: string; party: string; position: string;
     voteYes: number; voteNo: number; cosponsors?: number; source: string;
@@ -291,7 +307,14 @@ export default async function BillDetailPage({
         {/* Sidebar — Action Card */}
         <div id="action" className="lg:col-span-1">
           <div className="sticky top-24">
-            <ActionCard orgs={orgs} events={events} billId={bill.id} billTags={bill.topicTags} />
+            <ActionCard
+              orgs={orgs}
+              events={events}
+              billId={bill.id}
+              billTags={bill.topicTags}
+              viewerReps={viewerReps}
+              viewerStateName={viewerLocation.stateName}
+            />
           </div>
         </div>
       </div>

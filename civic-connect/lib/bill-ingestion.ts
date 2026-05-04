@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { fetchBillDetail, fetchRecentBills, type CongressBill } from "./congress";
-import { inferTopics } from "./topics";
+import { classifyBillTaxonomy } from "./taxonomy/classify";
 import { isMajorBillAction } from "./breaking-bills";
 import { fetchBestOpenverseBillImage, getNoImageAttemptMetadata } from "./openverse";
 
@@ -15,8 +15,8 @@ export async function fetchBillsForMetadataIngest(
 
 export async function upsertBillMetadataFromCongress(bill: CongressBill) {
   const billId = `${bill.type.toLowerCase()}-${bill.number}-${bill.congress}`;
-  const topicTags = inferTopics(bill.title);
   const detail = await fetchBillDetail(bill.congress, bill.type, bill.number);
+  const { topicTags } = classifyBillTaxonomy(detail, bill.title);
   const sponsor = detail?.sponsor ?? bill.sponsors?.[0]?.fullName ?? "Unknown";
   const status = bill.latestAction?.text ?? "Unknown";
   const introducedAt = parseIntroducedDate(bill.introducedDate);
