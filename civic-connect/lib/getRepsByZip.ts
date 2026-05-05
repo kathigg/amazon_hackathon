@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "./prisma";
 import type { RepSummary } from "./getRepsByState";
 import { stateCodeToName } from "./us-states";
@@ -20,7 +21,8 @@ const CHAMBER_FULL: Record<string, string> = {
  *
  * For ZCTAs that straddle district lines, multiple House reps may be returned.
  */
-export async function getRepsByZip(zip: string): Promise<RepSummary[]> {
+const getCachedRepsByZip = unstable_cache(
+  async (zip: string): Promise<RepSummary[]> => {
   const matches = await prisma.zipDistrict.findMany({
     where: { zip },
     select: { stateCode: true, stateName: true, district: true },
@@ -77,4 +79,11 @@ export async function getRepsByZip(zip: string): Promise<RepSummary[]> {
   });
 
   return reps;
+  },
+  ["reps-by-zip"],
+  { revalidate: 3_600 }
+);
+
+export async function getRepsByZip(zip: string): Promise<RepSummary[]> {
+  return getCachedRepsByZip(zip.trim());
 }

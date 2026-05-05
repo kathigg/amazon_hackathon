@@ -9,7 +9,6 @@ import ActionCard from "@/components/ActionCard";
 import FeedbackButton from "@/components/FeedbackButton";
 import SummaryLoading from "@/components/SummaryLoading";
 import BillProgressFlow from "@/components/BillProgressFlow";
-import PageViewTracker from "@/components/PageViewTracker";
 import BillViewTracker from "@/components/BillViewTracker";
 import RepresentativeStances from "@/components/RepresentativeStances";
 import BillIssueVisual from "@/components/BillIssueVisual";
@@ -20,6 +19,7 @@ import { getSummaryPreview } from "@/lib/bill-summary";
 import { formatTopicTag } from "@/lib/topics";
 import { parseTerm } from "@/lib/taxonomy";
 import { formatBillDate } from "@/lib/bill-dates";
+import { withTimeout } from "@/lib/with-timeout";
 
 export const dynamic = "force-dynamic";
 
@@ -48,24 +48,23 @@ export default async function BillDetailPage({
   params: { id: string };
   searchParams: { devState?: string; devPostal?: string };
 }) {
-  const bill = await getBill(params.id);
+  const bill = await withTimeout(() => getBill(params.id), 2_500, null);
   if (!bill) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-24 text-center">
         <h1 className="mb-3 font-display text-3xl font-bold text-navy">
-          Bill Not Found
+          Bill Temporarily Unavailable
         </h1>
         <p className="mb-4 text-gray-500">
-          We couldn&apos;t find or fetch{" "}
+          We couldn&apos;t load{" "}
           <code className="rounded bg-gray-100 px-2 py-0.5 text-sm">
             {params.id}
-          </code>
-          .
+          </code>{" "}
+          right now.
         </p>
         <p className="mb-8 text-sm text-gray-400">
-          Make sure the bill ID is in the format{" "}
-          <code className="rounded bg-gray-100 px-1">hr-1-119</code>{" "}
-          (type-number-congress), and that your Congress.gov API key is valid.
+          The bill database is responding slowly. Try again shortly or head
+          back to the bills feed while we recover.
         </p>
         <Link href="/bills" className="btn-primary inline-block">
           Back to Bills
@@ -74,9 +73,18 @@ export default async function BillDetailPage({
     );
   }
 
-  const currentUser = await getCurrentUser().catch(() => null);
-  const { orgs, events } = await getRelatedOrganizationsAndEvents(
-    bill.topicTags
+  const currentUser = await withTimeout(
+    () => getCurrentUser().catch(() => null),
+    800,
+    null
+  );
+  const { orgs, events } = await withTimeout(
+    () =>
+      getRelatedOrganizationsAndEvents(
+        bill.topicTags
+      ).catch(() => ({ orgs: [], events: [] })),
+    1_500,
+    { orgs: [], events: [] }
   );
   const chamberFocus = getBillChamberFocus(bill.status, bill.type);
   const plainLanguage = getSummaryPreview(bill.summary?.plainLanguage);
@@ -91,12 +99,22 @@ export default async function BillDetailPage({
 
   let viewerReps: RepSummary[] = [];
   if (zipForLookup) {
-    viewerReps = await getRepsByZip(zipForLookup);
+    viewerReps = await withTimeout(
+      () => getRepsByZip(zipForLookup).catch(() => []),
+      1_500,
+      []
+    );
   }
-  if (viewerReps.length === 0 && viewerLocation.stateName) {
-    viewerReps = await getRepsByStateName(viewerLocation.stateName);
+  const viewerStateName = viewerLocation.stateName;
+
+  if (viewerReps.length === 0 && viewerStateName) {
+    viewerReps = await withTimeout(
+      () => getRepsByStateName(viewerStateName).catch(() => []),
+      1_500,
+      []
+    );
   }
-  const viewerStateName = viewerReps[0]?.state ?? viewerLocation.stateName ?? null;
+  const resolvedViewerStateName = viewerReps[0]?.state ?? viewerStateName ?? null;
 
   type StanceWithCosponsors = {
     id: string;
@@ -117,7 +135,6 @@ export default async function BillDetailPage({
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-6 pt-3 sm:px-6 lg:px-8">
-      <PageViewTracker billId={bill.id} />
       <BillViewTracker billId={bill.id} topics={bill.topicTags} />
 
       <Link
@@ -357,7 +374,7 @@ export default async function BillDetailPage({
               billId={bill.id}
               billTags={bill.topicTags}
               viewerReps={viewerReps}
-              viewerStateName={viewerStateName}
+              viewerStateName={resolvedViewerStateName}
             />
           </div>
         </div>

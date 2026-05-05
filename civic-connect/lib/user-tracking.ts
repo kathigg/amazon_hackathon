@@ -51,8 +51,6 @@ function clearCookie(name: string) {
 }
 
 async function findUserById(userId: string) {
-  await ensureAccountSchema();
-
   return prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -73,18 +71,7 @@ async function findUserById(userId: string) {
 }
 
 export async function getCurrentUserId(): Promise<string | undefined> {
-  const userId = cookies().get(USER_COOKIE_NAME)?.value;
-
-  if (!userId) {
-    return undefined;
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true },
-  });
-
-  return user?.id;
+  return cookies().get(USER_COOKIE_NAME)?.value;
 }
 
 export async function getCurrentUser() {
@@ -316,6 +303,15 @@ export async function getOrCreateSession(userId: string): Promise<string> {
 }
 
 export async function trackPageView(path: string, userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+
+  if (!user) {
+    return;
+  }
+
   await prisma.pageView.create({
     data: {
       path,
@@ -325,31 +321,55 @@ export async function trackPageView(path: string, userId: string) {
 }
 
 export async function trackBillView(
-  userId: string,
+  userId: string | undefined,
   billId: string,
   timeSpent: number,
   scrollDepth: number
 ) {
-  const sessionId = await getOrCreateSession(userId).catch(() => undefined);
+  const trackedUserId = userId
+    ? (
+        await prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true },
+        })
+      )?.id
+    : undefined;
 
-  await prisma.billView.create({
-    data: {
-      userId,
-      billId,
-      timeSpent,
-      scrollDepth,
-    },
-  });
+  if (!trackedUserId) {
+    await prisma.bill.update({
+      where: { id: billId },
+      data: { viewCount: { increment: 1 } },
+    });
+    return;
+  }
 
-  if (sessionId) {
-    await prisma.session.update({
-      where: { id: sessionId },
+  const sessionId = await getOrCreateSession(trackedUserId).catch(() => undefined);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.billView.create({
       data: {
-        billsRead: { increment: 1 },
-        pageCount: { increment: 1 },
+        userId: trackedUserId,
+        billId,
+        timeSpent,
+        scrollDepth,
       },
     });
-  }
+
+    await tx.bill.update({
+      where: { id: billId },
+      data: { viewCount: { increment: 1 } },
+    });
+
+    if (sessionId) {
+      await tx.session.update({
+        where: { id: sessionId },
+        data: {
+          billsRead: { increment: 1 },
+          pageCount: { increment: 1 },
+        },
+      });
+    }
+  });
 }
 
 export async function updateTopicWeights(userId: string, topics: string[]) {

@@ -11,6 +11,8 @@ export type BillWithSummary = Prisma.BillGetPayload<{
 
 export type BillFeedSort = "latest" | "hot";
 
+const HOT_CANDIDATE_LIMIT = 60;
+
 export async function getBillsBySort({
   where,
   sort = "latest",
@@ -32,10 +34,26 @@ export async function getBillsBySort({
     });
   }
 
-  const bills = await prisma.bill.findMany({
-    where,
-    include: billWithSummaryInclude,
-  });
+  const [popularBills, recentBills] = await Promise.all([
+    prisma.bill.findMany({
+      where,
+      take: HOT_CANDIDATE_LIMIT,
+      orderBy: [{ viewCount: "desc" }, { introducedAt: "desc" }],
+      include: billWithSummaryInclude,
+    }),
+    prisma.bill.findMany({
+      where,
+      take: HOT_CANDIDATE_LIMIT,
+      orderBy: [{ introducedAt: "desc" }, { viewCount: "desc" }],
+      include: billWithSummaryInclude,
+    }),
+  ]);
+
+  const bills = Array.from(
+    new Map(
+      [...popularBills, ...recentBills].map((bill) => [bill.id, bill])
+    ).values()
+  );
 
   return rankBillsByHotScore(bills).slice(skip, skip + take);
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateUserId, trackPageView } from "@/lib/user-tracking";
+import { getCurrentUserId, trackPageView } from "@/lib/user-tracking";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -11,9 +11,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing path" }, { status: 400 });
   }
 
-  const userId = await getOrCreateUserId();
+  const userId = await getCurrentUserId();
 
-  await trackPageView(path, userId);
+  if (userId) {
+    await trackPageView(path, userId);
+  }
 
   if (billId && typeof billId === "string") {
     await prisma.bill.update({

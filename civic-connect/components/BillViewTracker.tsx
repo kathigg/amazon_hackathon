@@ -9,8 +9,15 @@ interface BillViewTrackerProps {
 export default function BillViewTracker({ billId, topics }: BillViewTrackerProps) {
   const startTime = useRef(Date.now());
   const maxScroll = useRef(0);
+  const sent = useRef(false);
 
   useEffect(() => {
+    const sessionKey = `civic-bill-view:${billId}`;
+
+    if (window.sessionStorage.getItem(sessionKey) === "sent") {
+      return;
+    }
+
     // Track scroll depth
     const handleScroll = () => {
       const windowHeight = window.innerHeight;
@@ -24,36 +31,51 @@ export default function BillViewTracker({ billId, topics }: BillViewTrackerProps
 
     window.addEventListener("scroll", handleScroll);
 
-    // Send tracking data when user leaves
-    const sendTrackingData = async () => {
+    const sendTrackingData = () => {
+      if (sent.current) {
+        return;
+      }
+
+      sent.current = true;
+      window.sessionStorage.setItem(sessionKey, "sent");
+
       const timeSpent = Math.round((Date.now() - startTime.current) / 1000);
-      
-      await fetch("/api/analytics/bill-view", {
+      const payload = JSON.stringify({
+        billId,
+        topics,
+        timeSpent,
+        scrollDepth: maxScroll.current,
+      });
+
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(
+          "/api/analytics/bill-view",
+          new Blob([payload], { type: "application/json" })
+        );
+        return;
+      }
+
+      fetch("/api/analytics/bill-view", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          billId,
-          topics,
-          timeSpent,
-          scrollDepth: maxScroll.current,
-        }),
-      });
+        body: payload,
+        keepalive: true,
+      }).catch(() => {});
     };
 
-    // Track on page unload
-    const handleBeforeUnload = () => {
-      sendTrackingData();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        sendTrackingData();
+      }
     };
 
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
-    // Also track every 30 seconds (in case user keeps tab open)
-    const interval = setInterval(sendTrackingData, 30000);
+    window.addEventListener("pagehide", sendTrackingData);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      clearInterval(interval);
+      window.removeEventListener("pagehide", sendTrackingData);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       sendTrackingData();
     };
   }, [billId, topics]);

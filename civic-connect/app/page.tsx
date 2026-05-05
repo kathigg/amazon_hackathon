@@ -1,7 +1,6 @@
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/user-tracking";
-import { getPersonalizedBills } from "@/lib/recommendations";
 import { getBillsBySort } from "@/lib/bill-feed";
 import BillFeedCard from "@/components/BillFeedCard";
 import BillLookup from "@/components/BillLookup";
@@ -12,35 +11,29 @@ import { getSummaryPreview } from "@/lib/bill-summary";
 import { formatTopicTag } from "@/lib/topics";
 import { getActiveTaxonomy } from "@/lib/taxonomy";
 import { formatBillDate, formatBillShortDate } from "@/lib/bill-dates";
+import { withTimeout } from "@/lib/with-timeout";
 
 const ACTIVE_TAXONOMY = getActiveTaxonomy();
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
+const HOME_QUERY_TIMEOUT_MS = 2_500;
 
-async function getPersonalizedFrontPageBills(userId?: string) {
-  if (!userId) {
-    return [];
-  }
+const getCachedHotBills = unstable_cache(
+  () => getBillsBySort({ sort: "hot", take: 6 }),
+  ["home-hot-bills"],
+  { revalidate: 300 }
+);
 
-  try {
-    const billIds = await getPersonalizedBills(userId, 3);
+const getCachedLatestBills = unstable_cache(
+  () => getBillsBySort({ sort: "latest", take: 5 }),
+  ["home-latest-bills"],
+  { revalidate: 300 }
+);
+
+const getCachedVisualizationBills = unstable_cache(
+  async () => {
     const bills = await prisma.bill.findMany({
-      where: { id: { in: billIds } },
-      include: { summary: true },
-    });
-
-    return billIds
-      .map((id) => bills.find((bill) => bill.id === id))
-      .filter((bill) => bill !== undefined);
-  } catch {
-    return [];
-  }
-}
-
-async function getBillsForVisualization() {
-  try {
-    const bills = await prisma.bill.findMany({
-      take: 100,
+      take: 40,
       orderBy: { introducedAt: "desc" },
       select: { id: true, title: true, status: true },
     });
@@ -49,9 +42,17 @@ async function getBillsForVisualization() {
       ...bill,
       stage: classifyBillStage(bill.status),
     }));
-  } catch {
-    return [];
-  }
+  },
+  ["home-visualization-bills"],
+  { revalidate: 300 }
+);
+
+async function getBillsForVisualization() {
+  return withTimeout(
+    () => getCachedVisualizationBills().catch(() => []),
+    HOME_QUERY_TIMEOUT_MS,
+    []
+  );
 }
 
 function classifyBillStage(
@@ -123,14 +124,17 @@ function classifyBillStage(
 }
 
 export default async function HomePage() {
-  const currentUser = await getCurrentUser().catch(() => null);
-  const [hotBills, latestBills, personalizedBills, visualizationBills] =
-    await Promise.all([
-      getBillsBySort({ sort: "hot", take: 6 }),
-      getBillsBySort({ sort: "latest", take: 5 }),
-      getPersonalizedFrontPageBills(currentUser?.id),
-      getBillsForVisualization(),
-    ]);
+  const hotBills = await withTimeout(
+    () => getCachedHotBills().catch(() => []),
+    HOME_QUERY_TIMEOUT_MS,
+    []
+  );
+  const latestBills = await withTimeout(
+    () => getCachedLatestBills().catch(() => []),
+    HOME_QUERY_TIMEOUT_MS,
+    []
+  );
+  const visualizationBills = await getBillsForVisualization();
 
   const leadBill = hotBills[0];
   const secondaryBills = hotBills.slice(1, 3);
@@ -270,71 +274,22 @@ export default async function HomePage() {
 
                 <div className="border border-black/10 bg-white p-6">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-                    {personalizedBills.length > 0
-                      ? "For You"
-                      : currentUser?.email
-                        ? "Tune Your Desk"
-                        : "Quick Account"}
+                    Reader Profile
                   </p>
-                  {personalizedBills.length > 0 ? (
-                    <>
-                      <h2 className="mt-3 font-display text-3xl text-navy">
-                        A shortlist tuned to your reading
-                      </h2>
-                      <div className="mt-5 space-y-4">
-                        {personalizedBills.map((bill) => (
-                          <Link
-                            key={bill.id}
-                            href={`/bill/${bill.id}`}
-                            className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
-                          >
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
-                              {bill.topicTags[0]
-                                ? formatTopicTag(bill.topicTags[0])
-                                : "General"}
-                            </p>
-                            <h3 className="mt-2 font-display text-2xl leading-tight text-navy">
-                              {bill.title}
-                            </h3>
-                          </Link>
-                        ))}
-                      </div>
-                    </>
-                  ) : currentUser?.email ? (
-                    <>
-                      <h2 className="mt-3 font-display text-3xl text-navy">
-                        Fine-tune what lands in For You
-                      </h2>
-                      <p className="mt-3 text-sm leading-7 text-navy/68">
-                        Update your saved issues to give the recommendation feed
-                        a cleaner starting point before your reading history
-                        takes over.
-                      </p>
-                      <Link
-                        href="/account"
-                        className="mt-6 inline-flex border border-navy px-5 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-navy"
-                      >
-                        Manage Account
-                      </Link>
-                    </>
-                  ) : (
-                    <>
-                      <h2 className="mt-3 font-display text-3xl text-navy">
-                        Create a quick account
-                      </h2>
-                      <p className="mt-3 text-sm leading-7 text-navy/68">
-                        Add your email, pick your policy areas, choose your
-                        briefing schedule, and tell us which senators or House
-                        members to surface first.
-                      </p>
-                      <Link
-                        href="/account"
-                        className="mt-6 inline-flex border border-navy px-5 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-navy"
-                      >
-                        Start Your Desk
-                      </Link>
-                    </>
-                  )}
+                  <h2 className="mt-3 font-display text-3xl text-navy">
+                    Build your own congressional briefing
+                  </h2>
+                  <p className="mt-3 text-sm leading-7 text-navy/68">
+                    Add your email, pick your policy areas, choose your
+                    briefing schedule, and tell us which senators or House
+                    members to surface first.
+                  </p>
+                  <Link
+                    href="/account"
+                    className="mt-6 inline-flex border border-navy px-5 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-navy"
+                  >
+                    Start Your Desk
+                  </Link>
                 </div>
 
                 <div className="border border-black/10 bg-white p-6">

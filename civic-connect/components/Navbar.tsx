@@ -7,13 +7,9 @@ import BreakingBanner from "@/components/BreakingBanner";
 import ClientErrorBoundary from "@/components/ClientErrorBoundary";
 import CivicConnectMark from "@/components/CivicConnectMark";
 
-interface NavbarProps {
-  accountEmail?: string | null;
-}
-
-export default function Navbar({ accountEmail }: NavbarProps) {
+export default function Navbar() {
   const [open, setOpen] = useState(false);
-  const accountLabel = accountEmail ? "My Account" : "Create Account";
+  const accountLabel = "Account";
 
   return (
     <header className="border-b border-black/10 bg-[#f6f1e7] text-navy">

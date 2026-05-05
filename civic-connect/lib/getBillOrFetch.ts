@@ -7,6 +7,7 @@
  * the API anchor with up to 2 additional LoC labels. This runs in parallel
  * with summary generation when both are needed.
  */
+import { unstable_cache } from "next/cache";
 import { prisma } from "./prisma";
 import { fetchBillText, fetchCosponsors } from "./congress";
 import { summarizeBill } from "./summarize";
@@ -26,63 +27,23 @@ function getCongressApiKey() {
 }
 
 export async function getBillOrFetch(billId: string) {
-  const existing = await prisma.bill.findUnique({
+  const existing = await getCachedBillById(billId);
+
+  if (existing) {
+    return existing;
+  }
+
+  const freshExisting = await prisma.bill.findUnique({
     where: { id: billId },
     include: { summary: true, stances: true },
   });
 
-  if (existing) {
-    // Run summary + tag enrichment in parallel when both are needed.
-    const needsSummary = !existing.summary;
-    const needsEnrich = existing.topicTagsSource !== "llm";
+  if (freshExisting) {
+    return freshExisting;
+  }
 
-    let enrichedTags: string[] | null = null;
-    if (needsSummary || needsEnrich) {
-      const [, enrichResult] = await Promise.all([
-        needsSummary
-          ? generateAndStoreSummary(
-              existing.id,
-              existing.title,
-              existing.congress,
-              existing.type,
-              existing.number
-            )
-          : Promise.resolve(null),
-        needsEnrich
-          ? enrichAndStoreTags(existing.id, existing.title, existing.topicTags)
-          : Promise.resolve(null),
-      ]);
-      if (enrichResult) enrichedTags = enrichResult;
-    }
-
-    // Fetch stances on-demand if missing (bill was ingested before stance data was available)
-    if (existing.stances.length === 0) {
-      await fetchAndStoreStances(billId, existing.congress, existing.type, existing.number);
-    }
-
-    // Retry image fetch if it failed before and we now have a summary
-    const tagsForImage = enrichedTags ?? existing.topicTags;
-    if (!existing.imageFetchedAt) {
-      const updatedBill = needsSummary
-        ? await prisma.bill.findUnique({
-            where: { id: billId },
-            select: { summary: true },
-          })
-        : { summary: existing.summary };
-      if (updatedBill?.summary) {
-        await fetchAndStoreOpenverseImage(
-          existing.id,
-          existing.title,
-          tagsForImage,
-          updatedBill.summary.plainLanguage
-        );
-      }
-    }
-
-    return prisma.bill.findUnique({
-      where: { id: billId },
-      include: { summary: true, stances: true },
-    });
+  if (process.env.ENABLE_ON_DEMAND_BILL_FETCH !== "true") {
+    return null;
   }
 
   // Not in DB — parse billId format: {type}-{number}-{congress}
@@ -159,6 +120,16 @@ export async function getBillOrFetch(billId: string) {
     include: { summary: true, stances: true },
   });
 }
+
+const getCachedBillById = unstable_cache(
+  async (billId: string) =>
+    prisma.bill.findUnique({
+      where: { id: billId },
+      include: { summary: true, stances: true },
+    }),
+  ["bill-by-id"],
+  { revalidate: 300 }
+);
 
 async function fetchAndStoreStances(
   billId: string,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getOrCreateUserId,
+  getCurrentUserId,
   trackBillView,
   updateTopicWeights,
 } from "@/lib/user-tracking";
@@ -9,11 +9,15 @@ export async function POST(req: NextRequest) {
   try {
     const { billId, topics, timeSpent, scrollDepth } = await req.json();
 
-    const userId = await getOrCreateUserId();
+    if (!billId || typeof billId !== "string") {
+      return NextResponse.json({ error: "Missing billId" }, { status: 400 });
+    }
+
+    const userId = await getCurrentUserId();
 
     await trackBillView(userId, billId, timeSpent, scrollDepth);
 
-    if (topics && topics.length > 0) {
+    if (userId && topics && topics.length > 0) {
       await updateTopicWeights(userId, topics);
     }
 

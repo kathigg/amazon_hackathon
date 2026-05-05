@@ -146,6 +146,7 @@ const accountSchemaStatements = [
 ];
 
 let accountSchemaPromise: Promise<void> | null = null;
+let accountSchemaSettled = false;
 
 function isOwnershipError(error: unknown) {
   return (
@@ -228,11 +229,22 @@ async function applyAccountSchema() {
 }
 
 export async function ensureAccountSchema() {
+  if (process.env.ENABLE_RUNTIME_SCHEMA_REPAIR !== "true") {
+    return;
+  }
+
+  if (accountSchemaSettled) {
+    return;
+  }
+
   if (!accountSchemaPromise) {
-    accountSchemaPromise = applyAccountSchema().catch((error) => {
-      accountSchemaPromise = null;
-      console.warn("Account schema check skipped:", error);
-    });
+    accountSchemaPromise = applyAccountSchema()
+      .catch((error) => {
+        console.warn("Account schema check skipped:", error);
+      })
+      .finally(() => {
+        accountSchemaSettled = true;
+      });
   }
 
   await accountSchemaPromise;

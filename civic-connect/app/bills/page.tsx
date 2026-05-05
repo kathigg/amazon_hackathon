@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/user-tracking";
 import { getPersonalizedBills } from "@/lib/recommendations";
@@ -63,22 +64,51 @@ async function getBills({
     return { bills, total: bills.length, pages: 1, personalized: true };
   }
 
-  const skip = (page - 1) * PAGE_SIZE;
-  const total = await prisma.bill.count({ where });
-  const bills = await getBillsBySort({
-    where,
-    sort,
-    take: PAGE_SIZE,
-    skip,
-  });
+  const { bills, total, pages } = await getCachedFeedPage(
+    q?.trim() || "",
+    topic?.trim() || "",
+    page,
+    sort
+  );
 
   return {
     bills,
     total,
-    pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+    pages,
     personalized: false,
   };
 }
+
+const getCachedFeedPage = unstable_cache(
+  async (q: string, topic: string, page: number, sort: BillFeedSort) => {
+    const where = {
+      ...(q && {
+        title: { contains: q, mode: "insensitive" as const },
+      }),
+      ...(topic && {
+        topicTags: { hasSome: filterPredicateForTopic(topic) },
+      }),
+    };
+    const skip = (page - 1) * PAGE_SIZE;
+    const [total, bills] = await Promise.all([
+      prisma.bill.count({ where }),
+      getBillsBySort({
+        where,
+        sort,
+        take: PAGE_SIZE,
+        skip,
+      }),
+    ]);
+
+    return {
+      bills,
+      total,
+      pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+    };
+  },
+  ["bills-feed-page"],
+  { revalidate: 300 }
+);
 
 export default async function BillsPage({
   searchParams,
