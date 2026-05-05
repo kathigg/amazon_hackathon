@@ -6,6 +6,7 @@ import { getBillsBySort } from "@/lib/bill-feed";
 import BillFeedCard from "@/components/BillFeedCard";
 import BillLookup from "@/components/BillLookup";
 import BillIssueVisual from "@/components/BillIssueVisual";
+import ClientErrorBoundary from "@/components/ClientErrorBoundary";
 import CongressVisualization from "@/components/CongressVisualization";
 import { getSummaryPreview } from "@/lib/bill-summary";
 import { formatTopicTag } from "@/lib/topics";
@@ -261,7 +262,9 @@ export default async function HomePage() {
                     and CivicConnect will take you straight to the filing.
                   </p>
                   <div className="mt-6">
-                    <BillLookup />
+                    <ClientErrorBoundary>
+                      <BillLookup />
+                    </ClientErrorBoundary>
                   </div>
                 </div>
 
@@ -385,25 +388,27 @@ export default async function HomePage() {
             </div>
 
             <div className="mt-2 border-t border-black/10">
-              {feedBills.map((bill) => (
-                <BillFeedCard
-                  key={bill.id}
-                  id={bill.id}
-                  title={bill.title}
-                  plainLanguage={bill.summary?.plainLanguage}
-                  status={bill.status}
-                  sponsor={bill.sponsor}
-                  topicTags={bill.topicTags}
-                  introducedAt={bill.introducedAt}
-                  viewCount={bill.viewCount}
-                  imageThumbnailUrl={bill.imageThumbnailUrl}
-                  imageUrl={bill.imageUrl}
-                  imageTitle={bill.imageTitle}
-                  imageCreator={bill.imageCreator}
-                  imageLicense={bill.imageLicense}
-                  imageLicenseVersion={bill.imageLicenseVersion}
-                />
-              ))}
+              <ClientErrorBoundary>
+                {feedBills.map((bill) => (
+                  <BillFeedCard
+                    key={bill.id}
+                    id={bill.id}
+                    title={bill.title}
+                    plainLanguage={bill.summary?.plainLanguage}
+                    status={bill.status}
+                    sponsor={bill.sponsor}
+                    topicTags={bill.topicTags}
+                    introducedAt={bill.introducedAt}
+                    viewCount={bill.viewCount}
+                    imageThumbnailUrl={bill.imageThumbnailUrl}
+                    imageUrl={bill.imageUrl}
+                    imageTitle={bill.imageTitle}
+                    imageCreator={bill.imageCreator}
+                    imageLicense={bill.imageLicense}
+                    imageLicenseVersion={bill.imageLicenseVersion}
+                  />
+                ))}
+              </ClientErrorBoundary>
             </div>
           </section>
         </>
@@ -436,7 +441,9 @@ export default async function HomePage() {
               legislative process.
             </p>
           </div>
-          <CongressVisualization bills={visualizationBills} />
+          <ClientErrorBoundary>
+            <CongressVisualization bills={visualizationBills} />
+          </ClientErrorBoundary>
         </div>
       </section>
     </div>

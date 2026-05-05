@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { Menu, X } from "lucide-react";
 import BillCategoryBar from "@/components/BillCategoryBar";
 import BreakingBanner from "@/components/BreakingBanner";
+import ClientErrorBoundary from "@/components/ClientErrorBoundary";
 import CivicConnectMark from "@/components/CivicConnectMark";
 
 interface NavbarProps {
@@ -103,10 +104,14 @@ export default function Navbar({ accountEmail }: NavbarProps) {
         )}
       </div>
 
-      <Suspense fallback={null}>
-        <BillCategoryBar />
-      </Suspense>
-      <BreakingBanner />
+      <ClientErrorBoundary>
+        <Suspense fallback={null}>
+          <BillCategoryBar />
+        </Suspense>
+      </ClientErrorBoundary>
+      <ClientErrorBoundary>
+        <BreakingBanner />
+      </ClientErrorBoundary>
     </header>
   );
 }

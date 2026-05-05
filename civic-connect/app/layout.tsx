@@ -3,6 +3,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import PageViewTracker from "@/components/PageViewTracker";
+import ClientErrorBoundary from "@/components/ClientErrorBoundary";
 import { getCurrentUser } from "@/lib/user-tracking";
 
 export const metadata: Metadata = {
@@ -30,7 +31,9 @@ export default async function RootLayout({
       </head>
       <body className="min-h-screen flex flex-col">
         <Navbar accountEmail={currentUser?.email ?? null} />
-        <PageViewTracker />
+        <ClientErrorBoundary>
+          <PageViewTracker />
+        </ClientErrorBoundary>
         <main className="flex-1 bg-[#f6f1e7]">{children}</main>
         <Footer />
       </body>
