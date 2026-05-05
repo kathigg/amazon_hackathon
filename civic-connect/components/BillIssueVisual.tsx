@@ -15,12 +15,11 @@ export default function BillIssueVisual({
   title,
   topicLabel,
   topicTags: _topicTags,
-  imageUrl: _imageUrl,
+  imageUrl,
   className,
   preferFull = false,
 }: BillIssueVisualProps) {
-  // Use a static local asset so cards still render when API routes are slow.
-  const imagePath = "/bill-placeholder.svg";
+  const imagePath = imageUrl || `/api/bill-image/${billId}`;
   const label = topicLabel?.trim() || "Policy graphic";
   const capsule = preferFull ? "px-3 py-1.5 text-[10px]" : "px-2.5 py-1 text-[9px]";
 
@@ -37,6 +36,11 @@ export default function BillIssueVisual({
         alt={`${label} graphic`}
         loading="lazy"
         decoding="async"
+        onError={(event) => {
+          const target = event.currentTarget;
+          if (target.src.includes("/bill-placeholder.svg")) return;
+          target.src = "/bill-placeholder.svg";
+        }}
         className="h-full w-full object-cover"
       />
 

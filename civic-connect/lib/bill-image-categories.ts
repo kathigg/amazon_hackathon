@@ -29,7 +29,7 @@ const CATEGORY_CONFIG: CategoryConfig[] = [
       "Native Americans",
       "Immigration",
     ],
-    manifestKeys: ["security", "general", "housing"],
+    manifestKeys: ["immigration", "security", "housing", "general"],
   },
   {
     slug: "health-welfare",
@@ -145,11 +145,13 @@ export function resolveBillImageCategory(topicTags: readonly string[]) {
 }
 
 function getCategoryImagePool(category: CategoryConfig) {
-  return Array.from(
-    new Set(
-      category.manifestKeys.flatMap((key) => IMAGE_MANIFEST[key] ?? [])
-    )
-  );
+  const primary = category.manifestKeys
+    .flatMap((key) => IMAGE_MANIFEST[key] ?? [])
+    .filter((value) => Boolean(value));
+  if (primary.length > 0) {
+    return Array.from(new Set(primary));
+  }
+  return IMAGE_MANIFEST.general ?? [];
 }
 
 function hashString(value: string) {

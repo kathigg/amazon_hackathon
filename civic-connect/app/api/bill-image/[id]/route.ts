@@ -1,9 +1,35 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getBillImageRecord } from "@/lib/bill-image-categories";
 
 export async function GET(
   _req: Request,
   { params }: { params: { id: string } }
 ) {
+  const bill = await prisma.bill.findUnique({
+    where: { id: params.id },
+    select: { id: true, topicTags: true, imageUrl: true },
+  });
+
+  if (bill?.imageUrl) {
+    return NextResponse.redirect(bill.imageUrl, {
+      status: 307,
+      headers: {
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+      },
+    });
+  }
+
+  if (bill) {
+    const categoryImage = getBillImageRecord(bill.id, bill.topicTags).imageUrl;
+    return NextResponse.redirect(categoryImage, {
+      status: 307,
+      headers: {
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+      },
+    });
+  }
+
   const svg = renderPlaceholderSvg(params.id);
 
   return new NextResponse(svg, {
@@ -44,7 +70,7 @@ function renderPlaceholderSvg(id: string) {
   <rect x="164" y="236" width="24" height="164" rx="12" fill="${primary}" opacity="0.76"/>
   <rect x="202" y="270" width="24" height="130" rx="12" fill="${secondary}" opacity="0.68"/>
   <line x1="246" y1="399" x2="628" y2="399" stroke="${primary}" stroke-opacity="0.14" stroke-width="3"/>
-  <text x="88" y="428" fill="#334155" font-size="28" font-family="Arial, sans-serif" font-weight="700">Editorial issue graphic</text>
+  <text x="88" y="428" fill="#334155" font-size="28" font-family="Arial, sans-serif" font-weight="700">Policy graphic fallback</text>
   <text x="88" y="456" fill="#64748b" font-size="18" font-family="Arial, sans-serif">CivicConnect uses general policy visuals rather than remote bill photography.</text>
 </svg>`;
 }
