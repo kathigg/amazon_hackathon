@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUserId } from "@/lib/user-tracking";
-import { getPersonalizedBills } from "@/lib/recommendations";
 import BillFeedCard from "@/components/BillFeedCard";
 import { BillFeedSort, billCardSelect, getBillsBySort } from "@/lib/bill-feed";
 import {
@@ -15,7 +13,7 @@ import { withTimeout } from "@/lib/with-timeout";
 
 const ACTIVE_TAXONOMY = getActiveTaxonomy();
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 interface SearchParams {
   q?: string;
@@ -32,15 +30,11 @@ async function getBills({
   q,
   topic,
   page = 1,
-  userId,
-  personalized,
   sort,
 }: {
   q?: string;
   topic?: string;
   page?: number;
-  userId?: string;
-  personalized: boolean;
   sort: BillFeedSort;
 }) {
   const where = {
@@ -51,29 +45,6 @@ async function getBills({
       topicTags: { hasSome: filterPredicateForTopic(topic) },
     }),
   };
-
-  if (personalized && userId && !q && !topic) {
-    const billIds = await withTimeout(
-      () => getPersonalizedBills(userId, PAGE_SIZE),
-      BILLS_QUERY_TIMEOUT_MS,
-      []
-    );
-    const personalizedBills = await withTimeout(
-      () =>
-        prisma.bill.findMany({
-          where: { id: { in: billIds } },
-          select: billCardSelect,
-        }),
-      BILLS_QUERY_TIMEOUT_MS,
-      []
-    );
-
-    const bills = billIds
-      .map((id) => personalizedBills.find((bill) => bill.id === id))
-      .filter((bill) => bill !== undefined);
-
-    return { bills, total: bills.length, pages: 1, personalized: true };
-  }
 
   const { bills, total, pages } = await withTimeout(
     () =>
@@ -88,7 +59,6 @@ async function getBills({
     bills,
     total,
     pages,
-    personalized: false,
   };
 }
 
@@ -129,22 +99,14 @@ export default async function BillsPage({
   searchParams: SearchParams;
 }) {
   const page = Number(searchParams.page ?? 1);
-  const userId = await withTimeout(
-    () => getCurrentUserId().catch(() => undefined),
-    1_000,
-    undefined
-  );
   const sort = normalizeSort(searchParams.sort);
-  const personalized = searchParams.personalized === "true";
 
-  const [{ bills, total, pages, personalized: isPersonalized }, railBills] =
+  const [{ bills, total, pages }, railBills] =
     await Promise.all([
       getBills({
         q: searchParams.q,
         topic: searchParams.topic,
         page,
-        userId,
-        personalized,
         sort,
       }),
       withTimeout(
@@ -162,20 +124,16 @@ export default async function BillsPage({
     q: searchParams.q,
     topic: searchParams.topic,
     sort,
-    personalized: isPersonalized,
+    personalized: false,
   });
 
   const description = getFeedDescription({
     q: searchParams.q,
     topic: searchParams.topic,
     sort,
-    personalized: isPersonalized,
+    personalized: false,
     total,
   });
-
-  const personalizedHref = isPersonalized
-    ? "/bills"
-    : buildBillsHref({ personalized: "true" });
 
   return (
     <div className="min-h-screen">
@@ -227,20 +185,6 @@ export default async function BillsPage({
 
             <aside className="border-t border-black/10 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
               <div className="space-y-6">
-                {userId && !searchParams.q && !searchParams.topic && (
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-                      Reader View
-                    </p>
-                    <Link
-                      href={personalizedHref}
-                      className="mt-3 inline-flex border border-black/15 bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.22em] text-navy transition-colors hover:border-navy"
-                    >
-                      {isPersonalized ? "Back to Latest" : "Switch to For You"}
-                    </Link>
-                  </div>
-                )}
-
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
                     What Our Readers Open Most
@@ -326,7 +270,7 @@ export default async function BillsPage({
                     imageUrl={bill.imageUrl}
                     introducedAt={bill.introducedAt}
                     viewCount={bill.viewCount}
-                    isPersonalized={isPersonalized}
+                    isPersonalized={false}
                   />
                 ))}
               </div>
