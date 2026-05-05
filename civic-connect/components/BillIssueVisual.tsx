@@ -1,5 +1,4 @@
 import clsx from "clsx";
-import { getTopicImagePath } from "@/lib/topic-image-pool";
 
 interface BillIssueVisualProps {
   billId: string;
@@ -15,12 +14,14 @@ export default function BillIssueVisual({
   billId,
   title,
   topicLabel,
-  topicTags,
-  imageUrl,
+  topicTags: _topicTags,
+  imageUrl: _imageUrl,
   className,
   preferFull = false,
 }: BillIssueVisualProps) {
-  const imagePath = imageUrl || getTopicImagePath(billId, topicTags);
+  // Prefer a deterministic editorial placeholder over noisy/irrelevant stock
+  // imagery. (We still accept `imageUrl` for future use, but do not default to it.)
+  const imagePath = `/api/bill-image/${billId}`;
   const label = topicLabel?.trim() || "Policy graphic";
   const capsule = preferFull ? "px-3 py-1.5 text-[10px]" : "px-2.5 py-1 text-[9px]";
 

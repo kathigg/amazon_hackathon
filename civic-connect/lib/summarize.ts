@@ -8,6 +8,7 @@
 
 import { callBedrockStructured } from "./bedrock-structured";
 import { isBedrockConfigured } from "./aws-bedrock";
+import { withTimeout } from "./with-timeout";
 
 export interface BillSummary {
   plainLanguage: string;
@@ -94,14 +95,25 @@ export async function summarizeBill(
   }
 
   try {
-    const summary = await callBedrockStructured<BillSummary>({
-      prompt: buildPrompt(title, billText),
-      toolName: "submit_summary",
-      toolDescription: "Submit the structured plain-language summary of this bill",
-      inputSchema: SUMMARY_SCHEMA,
-      maxTokens: 1500,
-      temperature: 0.2,
-    });
+    const summary = await withTimeout<BillSummary | null>(
+      () =>
+        callBedrockStructured<BillSummary>({
+          prompt: buildPrompt(title, billText),
+          toolName: "submit_summary",
+          toolDescription:
+            "Submit the structured plain-language summary of this bill",
+          inputSchema: SUMMARY_SCHEMA,
+          maxTokens: 1500,
+          temperature: 0.2,
+        }),
+      12_000,
+      null
+    );
+
+    if (!summary) {
+      return { ...FALLBACK, aiProvider, aiModel };
+    }
+
     return { ...summary, aiProvider, aiModel };
   } catch (err) {
     console.error("Summarization failed:", err);

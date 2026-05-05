@@ -91,20 +91,11 @@ export async function getBillOrFetch(billId: string) {
     },
   });
 
-  // Summary + tag enrichment in parallel.
-  const [, enrichedTags] = await Promise.all([
-    generateAndStoreSummary(created.id, created.title, congress, type, number),
-    enrichAndStoreTags(created.id, created.title, apiClassification.topicTags),
-  ]);
-
-  // Get the freshly written summary (parallel call landed it).
-  const billWithSummary = await prisma.bill.findUnique({
-    where: { id: created.id },
-    include: { summary: true },
-  });
-
-  // Fetch vote stances and cosponsors
-  await fetchAndStoreStances(created.id, congress, type, number);
+  // Never block a user page-load on AI or Congress.gov full-text fetches.
+  // Fire-and-forget background enrichment; the next request will pick up results.
+  void generateAndStoreSummary(created.id, created.title, congress, type, number);
+  void enrichAndStoreTags(created.id, created.title, apiClassification.topicTags);
+  void fetchAndStoreStances(created.id, congress, type, number);
 
   return prisma.bill.findUnique({
     where: { id: created.id },
@@ -167,6 +158,12 @@ async function generateAndStoreSummary(
     const textUrl = await fetchBillText(congress, type, number);
     let billText = title;
     if (textUrl) {
+      // Cache for bill text preview/links to avoid re-hitting the Congress API.
+      void prisma.bill.update({
+        where: { id: billId },
+        data: { fullTextUrl: textUrl },
+      });
+
       const r = await fetch(textUrl);
       if (r.ok) billText = preprocessBillText(await r.text());
     }

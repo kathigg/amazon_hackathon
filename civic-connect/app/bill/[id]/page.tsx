@@ -12,6 +12,7 @@ import BillProgressFlow from "@/components/BillProgressFlow";
 import BillViewTracker from "@/components/BillViewTracker";
 import RepresentativeStances from "@/components/RepresentativeStances";
 import BillIssueVisual from "@/components/BillIssueVisual";
+import BillSummaryPanel from "@/components/BillSummaryPanel";
 import { getCurrentUser } from "@/lib/user-tracking";
 import { getBillChamberFocus } from "@/lib/legislative";
 import { getRelatedOrganizationsAndEvents } from "@/lib/organization-matching";
@@ -20,11 +21,44 @@ import { formatTopicTag } from "@/lib/topics";
 import { parseTerm } from "@/lib/taxonomy";
 import { formatBillDate } from "@/lib/bill-dates";
 import { withTimeout } from "@/lib/with-timeout";
+import { fetchBillText } from "@/lib/congress";
+import { preprocessBillText } from "@/lib/bill-text";
 
 export const dynamic = "force-dynamic";
 
 async function getBill(id: string) {
   return getBillOrFetch(id);
+}
+
+async function getBillTextPreview(bill: {
+  congress: number;
+  type: string;
+  number: string;
+}) {
+  const textUrl = await withTimeout(
+    () => fetchBillText(bill.congress, bill.type, bill.number),
+    1_500,
+    null
+  );
+  if (!textUrl) return null;
+
+  const raw = await withTimeout(
+    () =>
+      fetch(textUrl, { next: { revalidate: 86_400 } }).then((res) =>
+        res.ok ? res.text() : null
+      ),
+    2_500,
+    null
+  );
+  if (!raw) return null;
+
+  const cleaned = preprocessBillText(raw);
+  if (!cleaned) return null;
+
+  return {
+    textUrl,
+    preview: cleaned.length > 3_000 ? `${cleaned.slice(0, 3_000)}…` : cleaned,
+  };
 }
 
 function StatusIcon({ status }: { status: string }) {
@@ -48,7 +82,14 @@ export default async function BillDetailPage({
   params: { id: string };
   searchParams: { devState?: string; devPostal?: string };
 }) {
-  const bill = await withTimeout(() => getBill(params.id), 2_500, null);
+  let bill = null;
+  try {
+    // Avoid timing out the critical bill fetch: Next.js will show `loading.tsx`
+    // while this resolves. Timing out early makes new bills feel "broken".
+    bill = await getBill(params.id);
+  } catch {
+    bill = null;
+  }
   if (!bill) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-24 text-center">
@@ -89,6 +130,12 @@ export default async function BillDetailPage({
   const chamberFocus = getBillChamberFocus(bill.status, bill.type);
   const plainLanguage = getSummaryPreview(bill.summary?.plainLanguage);
   const whyItMatters = getSummaryPreview(bill.summary?.whyItMatters);
+  const hasUsableSummary =
+    Boolean(plainLanguage) ||
+    Boolean(whyItMatters) ||
+    (bill.summary?.keyProvisions?.length ?? 0) > 0;
+
+  const billText = await getBillTextPreview(bill);
 
   const viewerLocation = getViewerLocation(
     searchParams.devState ?? null,
@@ -219,8 +266,7 @@ export default async function BillDetailPage({
           <BillProgressFlow status={bill.status} />
 
           <div className="card p-6 sm:p-8">
-            {bill.summary &&
-            (plainLanguage || bill.summary.keyProvisions.length > 0 || whyItMatters) ? (
+            {bill.summary && hasUsableSummary ? (
               <div>
                 <div className="mb-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -272,8 +318,55 @@ export default async function BillDetailPage({
                   </div>
                 )}
               </div>
+            ) : bill.summary ? (
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-bold text-navy">Plain-Language Summary</h2>
+                    <span className="tag bg-gray-100 text-xs text-gray-600">
+                      Unavailable
+                    </span>
+                  </div>
+                  <FeedbackButton billId={bill.id} />
+                </div>
+                <p className="text-sm leading-relaxed text-gray-600">
+                  We couldn&apos;t generate a plain-English summary for this bill
+                  right now. You can still read the official bill text below.
+                </p>
+              </div>
             ) : (
-              <SummaryLoading />
+              <BillSummaryPanel billId={bill.id} />
+            )}
+          </div>
+
+          <div className="card p-6 sm:p-8">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-bold text-navy">Bill Text</h2>
+              {billText?.textUrl ? (
+                <a
+                  href={billText.textUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-civic-blue hover:underline"
+                >
+                  View on Congress.gov
+                </a>
+              ) : null}
+            </div>
+
+            {billText ? (
+              <details className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                <summary className="cursor-pointer select-none text-sm font-medium text-navy">
+                  Show / hide bill text preview
+                </summary>
+                <pre className="mt-4 whitespace-pre-wrap text-xs leading-relaxed text-gray-700">
+                  {billText.preview}
+                </pre>
+              </details>
+            ) : (
+              <p className="text-sm text-gray-500">
+                Bill text is temporarily unavailable.
+              </p>
             )}
           </div>
 

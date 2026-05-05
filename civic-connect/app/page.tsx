@@ -25,7 +25,7 @@ const getCachedHotBills = unstable_cache(
 );
 
 const getCachedLatestBills = unstable_cache(
-  () => getBillsBySort({ sort: "latest", take: 5 }),
+  () => getBillsBySort({ sort: "latest", take: 8 }),
   ["home-latest-bills"],
   { revalidate: 300 }
 );
@@ -136,9 +136,9 @@ export default async function HomePage() {
   );
   const visualizationBills = await getBillsForVisualization();
 
-  const leadBill = hotBills[0];
-  const secondaryBills = hotBills.slice(1, 3);
-  const feedBills = hotBills.slice(0, 4);
+  const leadBill = latestBills[0];
+  const secondaryBills = hotBills.slice(0, 2);
+  const feedBills = latestBills.slice(0, 6);
   const leadSummary = getSummaryPreview(leadBill?.summary?.plainLanguage);
 
   return (
@@ -158,7 +158,7 @@ export default async function HomePage() {
                 <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
                   <article>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-civic-red">
-                      Hot Bill
+                      Latest Bill
                     </p>
                     <Link href={`/bill/${leadBill.id}`} className="group block">
                       <h1 className="mt-4 font-display text-5xl leading-[0.95] text-navy transition-colors group-hover:text-civic-blue sm:text-6xl">
@@ -172,8 +172,7 @@ export default async function HomePage() {
                         <span>{leadBill.id.toUpperCase()}</span>
                         <span>{formatBillDate(leadBill.introducedAt)}</span>
                         <span>
-                          Opened by {leadBill.viewCount.toLocaleString()} of our
-                          readers
+                          Opened by {leadBill.viewCount.toLocaleString()} readers
                         </span>
                       </div>
                       <div className="mt-8 overflow-hidden border border-black/10 bg-white">
@@ -196,7 +195,7 @@ export default async function HomePage() {
 
                   <aside className="border-t border-black/10 pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-                      More in Hot
+                      Trending Now
                     </p>
                     <div className="mt-4 space-y-6">
                       {secondaryBills.map((bill) => (
@@ -209,8 +208,7 @@ export default async function HomePage() {
                             {(bill.topicTags[0]
                               ? formatTopicTag(bill.topicTags[0])
                               : "General")}{" "}
-                            · opened by {bill.viewCount.toLocaleString()} of our
-                            readers
+                            · {bill.viewCount.toLocaleString()} readers
                           </p>
                           <h2 className="mt-2 font-display text-3xl leading-tight text-navy">
                             {bill.title}
@@ -329,17 +327,17 @@ export default async function HomePage() {
             <div className="flex items-end justify-between gap-4 border-b border-black/10 pb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-                  Most Read
+                  Latest
                 </p>
                 <h2 className="mt-2 font-display text-4xl text-navy">
-                  Bills driving attention now
+                  Newly introduced bills
                 </h2>
               </div>
               <Link
-                href="/bills?sort=hot"
+                href="/bills"
                 className="shrink-0 border border-black/10 bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-navy transition-colors hover:border-navy"
               >
-                View All Hot Bills
+                View All Bills
               </Link>
             </div>
 
