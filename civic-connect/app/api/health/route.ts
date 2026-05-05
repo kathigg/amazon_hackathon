@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureAccountSchema } from "@/lib/account-schema";
 import { prisma } from "@/lib/prisma";
 
 const MAX_HEALTH_ATTEMPTS = 3;
@@ -35,6 +36,8 @@ async function checkDatabase() {
 }
 
 export async function GET() {
+  await ensureAccountSchema();
+
   const database = await checkDatabase();
 
   if (!database.ok) {
