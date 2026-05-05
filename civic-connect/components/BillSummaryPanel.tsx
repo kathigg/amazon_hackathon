@@ -14,7 +14,6 @@ type SummaryStatus = "pending" | "ready" | "unavailable";
 export default function BillSummaryPanel({ billId }: { billId: string }) {
   const [status, setStatus] = useState<SummaryStatus>("pending");
   const [summary, setSummary] = useState<SummaryPayload | null>(null);
-  const [attempted, setAttempted] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const pollTimer = useRef<number | null>(null);
   const elapsedTimer = useRef<number | null>(null);
@@ -30,30 +29,10 @@ export default function BillSummaryPanel({ billId }: { billId: string }) {
     setSummary(data.summary);
   }
 
-  async function triggerGeneration(signal?: AbortSignal) {
-    const res = await fetch(`/api/bills/${billId}/summary`, {
-      method: "POST",
-      signal,
-    });
-    // 200 (ready/unavailable) or 202 (pending)
-    if (!res.ok) return;
-    const data = (await res.json()) as {
-      status: SummaryStatus;
-      summary: SummaryPayload | null;
-    };
-    setAttempted(true);
-    setStatus(data.status);
-    setSummary(data.summary);
-  }
-
   useEffect(() => {
     const controller = new AbortController();
 
-    // 1) Load current status fast.
-    void fetchStatus(controller.signal).then(() => {
-      // 2) If still pending, kick off generation once.
-      void triggerGeneration(controller.signal);
-    });
+    void fetchStatus(controller.signal);
 
     // Update elapsed timer for UI copy.
     elapsedTimer.current = window.setInterval(() => {
@@ -144,15 +123,12 @@ export default function BillSummaryPanel({ billId }: { billId: string }) {
         Reading the bill…
       </div>
       <p className="text-xs text-gray-500 max-w-xs text-center">
-        {attempted
-          ? `Generating the plain-English summary (elapsed ${seconds}s).`
-          : "Preparing summary generation…"}
+        {`Waiting for background summary job (elapsed ${seconds}s).`}
       </p>
       <p className="text-[11px] text-gray-400 max-w-sm text-center">
-        If this takes more than a minute, the AI service or Congress.gov text
-        endpoint is likely slow.
+        If this takes more than a minute, the background worker queue is likely
+        delayed.
       </p>
     </div>
   );
 }
-

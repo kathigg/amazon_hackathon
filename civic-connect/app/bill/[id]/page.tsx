@@ -7,7 +7,6 @@ import { getRepsByZip } from "@/lib/getRepsByZip";
 import StanceCard from "@/components/StanceCard";
 import ActionCard from "@/components/ActionCard";
 import FeedbackButton from "@/components/FeedbackButton";
-import SummaryLoading from "@/components/SummaryLoading";
 import BillProgressFlow from "@/components/BillProgressFlow";
 import BillViewTracker from "@/components/BillViewTracker";
 import RepresentativeStances from "@/components/RepresentativeStances";
