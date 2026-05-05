@@ -16,7 +16,6 @@ import { classifyBillTaxonomy } from "./taxonomy/classify";
 import { classifyBillFromTitle } from "./taxonomy/classify-bill-llm";
 import { parseTerm } from "./taxonomy";
 import { fetchBillVotes } from "./votes";
-import { fetchBestOpenverseBillImage, getNoImageAttemptMetadata } from "./openverse";
 import { parseIntroducedDate } from "./bill-ingestion";
 
 const BASE = "https://api.congress.gov/v3";
@@ -103,14 +102,6 @@ export async function getBillOrFetch(billId: string) {
     where: { id: created.id },
     include: { summary: true },
   });
-
-  // Image fetch uses the (possibly enriched) tag set + summary.
-  await fetchAndStoreOpenverseImage(
-    created.id,
-    created.title,
-    enrichedTags ?? created.topicTags,
-    billWithSummary?.summary?.plainLanguage
-  );
 
   // Fetch vote stances and cosponsors
   await fetchAndStoreStances(created.id, congress, type, number);
@@ -229,19 +220,4 @@ async function enrichAndStoreTags(
     console.error("[enrichAndStoreTags] error:", e);
     return null;
   }
-}
-
-async function fetchAndStoreOpenverseImage(
-  billId: string,
-  title: string,
-  topicTags: string[],
-  summary?: string
-) {
-  try {
-    const image = await fetchBestOpenverseBillImage({ title, topicTags, summary });
-    await prisma.bill.update({
-      where: { id: billId },
-      data: image ?? getNoImageAttemptMetadata(parseTerm(topicTags[0])?.value.toLowerCase() ?? null),
-    });
-  } catch {}
 }

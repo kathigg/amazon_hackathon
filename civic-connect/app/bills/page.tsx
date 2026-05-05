@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/user-tracking";
 import { getPersonalizedBills } from "@/lib/recommendations";
 import BillFeedCard from "@/components/BillFeedCard";
-import { BillFeedSort, getBillsBySort } from "@/lib/bill-feed";
+import { BillFeedSort, billCardSelect, getBillsBySort } from "@/lib/bill-feed";
 import {
   filterPredicateForTopic,
   getActiveTaxonomy,
@@ -54,7 +54,7 @@ async function getBills({
     const billIds = await getPersonalizedBills(userId, PAGE_SIZE);
     const personalizedBills = await prisma.bill.findMany({
       where: { id: { in: billIds } },
-      include: { summary: true },
+      select: billCardSelect,
     });
 
     const bills = billIds
@@ -301,15 +301,10 @@ export default async function BillsPage({
                     status={bill.status}
                     sponsor={bill.sponsor}
                     topicTags={bill.topicTags}
+                    imageUrl={bill.imageUrl}
                     introducedAt={bill.introducedAt}
                     viewCount={bill.viewCount}
                     isPersonalized={isPersonalized}
-                    imageThumbnailUrl={bill.imageThumbnailUrl}
-                    imageUrl={bill.imageUrl}
-                    imageTitle={bill.imageTitle}
-                    imageCreator={bill.imageCreator}
-                    imageLicense={bill.imageLicense}
-                    imageLicenseVersion={bill.imageLicenseVersion}
                   />
                 ))}
               </div>

@@ -1,17 +1,29 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-const billWithSummaryInclude = {
-  summary: true,
-} satisfies Prisma.BillInclude;
+export const billCardSelect = {
+  id: true,
+  title: true,
+  sponsor: true,
+  status: true,
+  introducedAt: true,
+  topicTags: true,
+  imageUrl: true,
+  viewCount: true,
+  summary: {
+    select: {
+      plainLanguage: true,
+    },
+  },
+} satisfies Prisma.BillSelect;
 
 export type BillWithSummary = Prisma.BillGetPayload<{
-  include: typeof billWithSummaryInclude;
+  select: typeof billCardSelect;
 }>;
 
 export type BillFeedSort = "latest" | "hot";
 
-const HOT_CANDIDATE_LIMIT = 60;
+const HOT_CANDIDATE_LIMIT = 32;
 
 export async function getBillsBySort({
   where,
@@ -30,32 +42,57 @@ export async function getBillsBySort({
       take,
       skip,
       orderBy: [{ introducedAt: "desc" }, { viewCount: "desc" }],
-      include: billWithSummaryInclude,
+      select: billCardSelect,
     });
   }
+
+  const candidateSelect = {
+    id: true,
+    introducedAt: true,
+    viewCount: true,
+  } satisfies Prisma.BillSelect;
 
   const [popularBills, recentBills] = await Promise.all([
     prisma.bill.findMany({
       where,
       take: HOT_CANDIDATE_LIMIT,
       orderBy: [{ viewCount: "desc" }, { introducedAt: "desc" }],
-      include: billWithSummaryInclude,
+      select: candidateSelect,
     }),
     prisma.bill.findMany({
       where,
       take: HOT_CANDIDATE_LIMIT,
       orderBy: [{ introducedAt: "desc" }, { viewCount: "desc" }],
-      include: billWithSummaryInclude,
+      select: candidateSelect,
     }),
   ]);
 
-  const bills = Array.from(
+  const candidates = Array.from(
     new Map(
       [...popularBills, ...recentBills].map((bill) => [bill.id, bill])
     ).values()
   );
 
-  return rankBillsByHotScore(bills).slice(skip, skip + take);
+  const selectedIds = rankBillsByHotScore(candidates)
+    .slice(skip, skip + take)
+    .map((bill) => bill.id);
+
+  if (selectedIds.length === 0) {
+    return [];
+  }
+
+  const selectedBills = await prisma.bill.findMany({
+    where: {
+      id: {
+        in: selectedIds,
+      },
+    },
+    select: billCardSelect,
+  });
+
+  return selectedIds
+    .map((id) => selectedBills.find((bill) => bill.id === id))
+    .filter((bill): bill is BillWithSummary => Boolean(bill));
 }
 
 export function rankBillsByHotScore<T extends { introducedAt: Date; viewCount: number }>(

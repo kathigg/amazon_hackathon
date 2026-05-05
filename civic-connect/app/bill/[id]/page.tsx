@@ -188,33 +188,15 @@ export default async function BillDetailPage({
               <BillIssueVisual
                 billId={bill.id}
                 title={bill.title}
-                imageThumbnailUrl={bill.imageThumbnailUrl}
+                topicLabel={
+                  bill.topicTags[0] ? formatTopicTag(bill.topicTags[0]) : "General"
+                }
+                topicTags={bill.topicTags}
                 imageUrl={bill.imageUrl}
-                imageTitle={bill.imageTitle}
-                imageCreator={bill.imageCreator}
-                imageLicense={bill.imageLicense}
-                imageLicenseVersion={bill.imageLicenseVersion}
                 className="h-52 w-full md:h-64"
                 preferFull
-                showAttribution={false}
               />
             </div>
-
-            {bill.imagePageUrl && (
-              <div className="mt-4 text-xs text-gray-500">
-                <span className="font-medium text-gray-600">
-                  Illustrative image:
-                </span>{" "}
-                <a
-                  href={bill.imagePageUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-civic-blue hover:underline"
-                >
-                  View original image
-                </a>
-              </div>
-            )}
 
             <div className="mt-8 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               <div>

@@ -13,15 +13,10 @@ interface BillFeedCardProps {
   status: string;
   sponsor: string;
   topicTags: string[];
+  imageUrl?: string | null;
   introducedAt: Date | string;
   viewCount: number;
   isPersonalized?: boolean;
-  imageThumbnailUrl?: string | null;
-  imageUrl?: string | null;
-  imageTitle?: string | null;
-  imageCreator?: string | null;
-  imageLicense?: string | null;
-  imageLicenseVersion?: string | null;
 }
 
 export default function BillFeedCard({
@@ -31,15 +26,10 @@ export default function BillFeedCard({
   status,
   sponsor,
   topicTags,
+  imageUrl,
   introducedAt,
   viewCount,
   isPersonalized,
-  imageThumbnailUrl,
-  imageUrl,
-  imageTitle,
-  imageCreator,
-  imageLicense,
-  imageLicenseVersion,
 }: BillFeedCardProps) {
   const primaryTopic = topicTags[0] ? formatTopicTag(topicTags[0]) : "General";
   const summaryPreview = getSummaryPreview(plainLanguage);
@@ -99,12 +89,9 @@ export default function BillFeedCard({
           <BillIssueVisual
             billId={id}
             title={title}
-            imageThumbnailUrl={imageThumbnailUrl}
+            topicLabel={primaryTopic}
+            topicTags={topicTags}
             imageUrl={imageUrl}
-            imageTitle={imageTitle}
-            imageCreator={imageCreator}
-            imageLicense={imageLicense}
-            imageLicenseVersion={imageLicenseVersion}
             className="h-44 w-full border border-black/10 bg-white md:h-36"
           />
         </div>

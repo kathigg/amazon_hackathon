@@ -4,6 +4,7 @@ import {
 } from "../bill-ingestion";
 
 export const DEFAULT_INGEST_CONGRESS = 119;
+const METADATA_INGEST_CONCURRENCY = 5;
 
 export interface RunMetadataIngestOptions {
   congress?: number;
@@ -27,8 +28,22 @@ export async function runMetadataIngest(
   let skipped = 0;
   let breaking = 0;
 
-  const results = await Promise.allSettled(
-    bills.map((bill) => upsertBillMetadataFromCongress(bill))
+  const results = await mapWithConcurrency(
+    bills,
+    METADATA_INGEST_CONCURRENCY,
+    async (bill) => {
+      try {
+        return {
+          status: "fulfilled" as const,
+          value: await upsertBillMetadataFromCongress(bill),
+        };
+      } catch (error) {
+        return {
+          status: "rejected" as const,
+          reason: error,
+        };
+      }
+    }
   );
 
   for (const result of results) {
@@ -49,4 +64,27 @@ export async function runMetadataIngest(
     breaking,
     total: bills.length,
   };
+}
+
+async function mapWithConcurrency<T, R>(
+  values: T[],
+  concurrency: number,
+  worker: (value: T) => Promise<R>
+) {
+  const results: R[] = new Array(values.length);
+  let nextIndex = 0;
+
+  const runners = Array.from(
+    { length: Math.min(concurrency, values.length) },
+    async () => {
+      while (nextIndex < values.length) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        results[currentIndex] = await worker(values[currentIndex]);
+      }
+    }
+  );
+
+  await Promise.all(runners);
+  return results;
 }

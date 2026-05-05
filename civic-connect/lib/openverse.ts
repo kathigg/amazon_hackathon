@@ -16,6 +16,8 @@ interface OpenverseImage {
   source: string | null;
   width?: number | null;
   height?: number | null;
+  tags?: Array<{ name?: string | null }> | null;
+  category?: string | null;
 }
 
 interface OpenverseImageSearchResponse {
@@ -321,7 +323,26 @@ function extractKeywordsFromSummary(summary: string): string {
 }
 
 function isUsableImage(image: OpenverseImage) {
-  return Boolean(image.url && image.thumbnail);
+  if (!image.url || !image.thumbnail) {
+    return false;
+  }
+
+  if (!isLikelyPhotographic(image)) {
+    return false;
+  }
+
+  if (typeof image.width === "number" && typeof image.height === "number") {
+    // Avoid tiny and banner-like assets that look bad on cards.
+    if (image.width < 640 || image.height < 360) {
+      return false;
+    }
+    const ratio = image.width / image.height;
+    if (ratio > 2.4 || ratio < 0.55) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function scoreImage(image: OpenverseImage) {
@@ -351,4 +372,24 @@ function scoreImage(image: OpenverseImage) {
   }
 
   return score;
+}
+
+function isLikelyPhotographic(image: OpenverseImage) {
+  const source = `${image.source ?? ""}`.toLowerCase();
+  const title = `${image.title ?? ""}`.toLowerCase();
+  const creator = `${image.creator ?? ""}`.toLowerCase();
+  const category = `${image.category ?? ""}`.toLowerCase();
+  const tagText = (image.tags ?? [])
+    .map((tag) => `${tag?.name ?? ""}`.toLowerCase())
+    .join(" ");
+  const combined = `${source} ${title} ${creator} ${category} ${tagText}`;
+
+  const syntheticSignals =
+    /\b(ai|a\.?i\.?|generated|midjourney|stable diffusion|dall[- ]?e|render|cgi|3d|illustration|illustrated|vector|clipart|cartoon|drawing|painting|watercolor|sketch|icon|logo|mockup)\b/;
+
+  if (syntheticSignals.test(combined)) {
+    return false;
+  }
+
+  return true;
 }

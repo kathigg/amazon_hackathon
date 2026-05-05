@@ -1,9 +1,7 @@
 import { prisma } from "./prisma";
 import { fetchBillDetail, fetchRecentBills, type CongressBill } from "./congress";
 import { classifyBillTaxonomy } from "./taxonomy/classify";
-import { parseTerm } from "./taxonomy";
 import { isMajorBillAction } from "./breaking-bills";
-import { fetchBestOpenverseBillImage, getNoImageAttemptMetadata } from "./openverse";
 import { parseCongressDate } from "./bill-dates";
 
 export const BILL_METADATA_INGEST_LIMIT = 100;
@@ -19,17 +17,27 @@ export async function upsertBillMetadataFromCongress(bill: CongressBill) {
   const billId = `${bill.type.toLowerCase()}-${bill.number}-${bill.congress}`;
   const detail = await fetchBillDetail(bill.congress, bill.type, bill.number);
   const classification = classifyBillTaxonomy(detail, bill.title);
-  const { topicTags } = classification;
   const sponsor = detail?.sponsor ?? bill.sponsors?.[0]?.fullName ?? "Unknown";
   const status = bill.latestAction?.text ?? "Unknown";
-  const introducedAt = parseIntroducedDate(
+  const candidateIntroducedAt = parseIntroducedDate(
     detail?.introducedDate ?? bill.introducedDate,
     detail?.latestActionDate ?? bill.latestAction?.actionDate
   );
   const existing = await prisma.bill.findUnique({
     where: { id: billId },
-    select: { status: true, breakingAt: true, title: true, imageFetchedAt: true },
+    select: {
+      status: true,
+      breakingAt: true,
+      introducedAt: true,
+      topicTags: true,
+    },
   });
+  const topicTags = resolveTopicTags(classification.topicTags, existing?.topicTags ?? []);
+  const introducedAt = resolveIntroducedAt(
+    candidateIntroducedAt,
+    existing?.introducedAt ?? null,
+    detail?.latestActionDate ?? bill.latestAction?.actionDate
+  );
   const breakingAt =
     existing && existing.status !== status && isMajorBillAction(status)
       ? new Date()
@@ -43,7 +51,12 @@ export async function upsertBillMetadataFromCongress(bill: CongressBill) {
       status,
       introducedAt,
       topicTags,
-      topicTagsSource: classification.source,
+      topicTagsSource:
+        topicTags.length === classification.topicTags.length && topicTags.length > 0
+          ? classification.source
+          : existing?.topicTags?.length
+            ? "preserved"
+            : classification.source,
       breakingAt,
     },
     create: {
@@ -56,15 +69,11 @@ export async function upsertBillMetadataFromCongress(bill: CongressBill) {
       status,
       introducedAt,
       topicTags,
-      topicTagsSource: classification.source,
+      topicTagsSource: topicTags.length > 0 ? classification.source : "none",
       fullTextUrl: null,
       breakingAt: null,
     },
   });
-
-  if (!existing?.imageFetchedAt || existing.title !== bill.title) {
-    await refreshBillImage(billId, bill.title, topicTags);
-  }
 
   return {
     billId,
@@ -81,16 +90,46 @@ export function parseIntroducedDate(
   return parseCongressDate(introducedDate, fallbackActionDate);
 }
 
-async function refreshBillImage(
-  billId: string,
-  title: string,
-  topicTags: string[]
+function resolveTopicTags(
+  candidateTopicTags: string[],
+  existingTopicTags: string[]
 ) {
-  try {
-    const image = await fetchBestOpenverseBillImage({ title, topicTags });
-    await prisma.bill.update({
-      where: { id: billId },
-      data: image ?? getNoImageAttemptMetadata(parseTerm(topicTags[0])?.value.toLowerCase() ?? null),
-    });
-  } catch {}
+  if (candidateTopicTags.length > 0) {
+    return candidateTopicTags;
+  }
+
+  if (existingTopicTags.length > 0) {
+    return existingTopicTags;
+  }
+
+  return [];
+}
+
+function resolveIntroducedAt(
+  candidate: Date,
+  existing: Date | null,
+  latestActionDate?: string
+) {
+  if (isLikelyPlaceholderDate(candidate) && existing && !isLikelyPlaceholderDate(existing)) {
+    return existing;
+  }
+
+  const latestAction = latestActionDate
+    ? parseCongressDate(latestActionDate)
+    : null;
+
+  if (latestAction && candidate.getTime() > latestAction.getTime() + 24 * 60 * 60 * 1000) {
+    return existing ?? latestAction;
+  }
+
+  const tomorrow = Date.now() + 24 * 60 * 60 * 1000;
+  if (candidate.getTime() > tomorrow) {
+    return existing ?? new Date();
+  }
+
+  return candidate;
+}
+
+function isLikelyPlaceholderDate(value: Date) {
+  return value.getUTCFullYear() <= 2001;
 }

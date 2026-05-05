@@ -104,11 +104,23 @@ For the AWS-side setup, read [AWS_CLOUDFRONT_GEOLOCATION.md](/Users/kathleenhigg
 
 ## Repository docs for engineers
 
+- [PROJECT_HANDOFF.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/PROJECT_HANDOFF.md)
+- [LLM_CONTEXT.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/LLM_CONTEXT.md)
 - [AWS_RUNTIME_SETUP.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/AWS_RUNTIME_SETUP.md)
 - [AWS_ECS_MIGRATION.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/AWS_ECS_MIGRATION.md)
 - [AWS_BEDROCK_SETUP.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/AWS_BEDROCK_SETUP.md)
 - [AWS_CLOUDFRONT_GEOLOCATION.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/AWS_CLOUDFRONT_GEOLOCATION.md)
 - [BRANDING_DIRECTIONS.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/BRANDING_DIRECTIONS.md)
+
+## First read for a new collaborator
+
+If you are joining the project fresh, read these in order:
+
+1. [README.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/README.md)
+2. [PROJECT_HANDOFF.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/PROJECT_HANDOFF.md)
+3. [AWS_RUNTIME_SETUP.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/AWS_RUNTIME_SETUP.md)
+4. [AWS_CLOUDFRONT_GEOLOCATION.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/AWS_CLOUDFRONT_GEOLOCATION.md)
+5. [LLM_CONTEXT.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/LLM_CONTEXT.md)
 
 ## Useful scripts
 

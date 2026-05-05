@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "./prisma";
 import { type ChamberFocus } from "./legislative";
 
@@ -43,29 +44,11 @@ export async function listBillRepresentativePositions({
   chamber?: ChamberFocus;
   preferredRepBioguideIds?: string[];
 }) {
-  const representatives = await prisma.representative.findMany({
-    where:
-      chamber === "both"
-        ? undefined
-        : {
-            chamber,
-          },
-    include: {
-      stances: {
-        where: {
-          billId,
-        },
-        orderBy: {
-          scrapedAt: "desc",
-        },
-        take: 1,
-      },
-    },
-  });
+  const representatives = await getCachedRepresentativePositions(billId, chamber);
 
   return representatives
     .map((representative) => {
-      const stanceRecord = representative.stances[0];
+      const stanceRecord = representative.stanceRecord;
       const stance = normalizeStance(
         stanceRecord?.stance,
         stanceRecord?.confidence ?? 0
@@ -107,6 +90,47 @@ export async function listBillRepresentativePositions({
       return left.lastName.localeCompare(right.lastName);
     });
 }
+
+const getCachedRepresentativePositions = unstable_cache(
+  async (billId: string, chamber: ChamberFocus) => {
+    const representatives = await prisma.representative.findMany({
+      where:
+        chamber === "both"
+          ? undefined
+          : {
+              chamber,
+            },
+      select: {
+        id: true,
+        bioguideId: true,
+        firstName: true,
+        lastName: true,
+        party: true,
+        chamber: true,
+        state: true,
+        district: true,
+        websiteUrl: true,
+        stances: {
+          where: {
+            billId,
+          },
+          orderBy: {
+            scrapedAt: "desc",
+          },
+          take: 1,
+        },
+      },
+    });
+
+    return representatives.map((representative) => ({
+      ...representative,
+      stanceRecord: representative.stances[0] ?? null,
+      stances: undefined,
+    }));
+  },
+  ["bill-representative-positions"],
+  { revalidate: 900 }
+);
 
 export function trimReasoning(reasoning?: string | null) {
   if (!reasoning) {

@@ -180,12 +180,13 @@ export default async function HomePage() {
                         <BillIssueVisual
                           billId={leadBill.id}
                           title={leadBill.title}
-                          imageThumbnailUrl={leadBill.imageThumbnailUrl}
+                          topicLabel={
+                            leadBill.topicTags[0]
+                              ? formatTopicTag(leadBill.topicTags[0])
+                              : "General"
+                          }
+                          topicTags={leadBill.topicTags}
                           imageUrl={leadBill.imageUrl}
-                          imageTitle={leadBill.imageTitle}
-                          imageCreator={leadBill.imageCreator}
-                          imageLicense={leadBill.imageLicense}
-                          imageLicenseVersion={leadBill.imageLicenseVersion}
                           className="h-72 w-full"
                           preferFull
                         />
@@ -353,14 +354,9 @@ export default async function HomePage() {
                     status={bill.status}
                     sponsor={bill.sponsor}
                     topicTags={bill.topicTags}
+                    imageUrl={bill.imageUrl}
                     introducedAt={bill.introducedAt}
                     viewCount={bill.viewCount}
-                    imageThumbnailUrl={bill.imageThumbnailUrl}
-                    imageUrl={bill.imageUrl}
-                    imageTitle={bill.imageTitle}
-                    imageCreator={bill.imageCreator}
-                    imageLicense={bill.imageLicense}
-                    imageLicenseVersion={bill.imageLicenseVersion}
                   />
                 ))}
               </ClientErrorBoundary>
