@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { BillFeedSort, getBillsBySort } from "@/lib/bill-feed";
 import { filterPredicateForTopic } from "@/lib/taxonomy";
+import { withTimeout } from "@/lib/with-timeout";
+
+const BILLS_API_TIMEOUT_MS = 2_500;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -17,15 +20,20 @@ export async function GET(req: NextRequest) {
     ...(topic && { topicTags: { hasSome: filterPredicateForTopic(topic) } }),
   };
 
-  const [bills, total] = await Promise.all([
-    getBillsBySort({
-      where,
-      sort,
-      take: limit,
-      skip,
-    }),
-    prisma.bill.count({ where }),
-  ]);
+  const [bills, total] = await withTimeout(
+    () =>
+      Promise.all([
+        getBillsBySort({
+          where,
+          sort,
+          take: limit,
+          skip,
+        }),
+        prisma.bill.count({ where }),
+      ]),
+    BILLS_API_TIMEOUT_MS,
+    [[], 0] as const
+  );
 
   return NextResponse.json({ bills, total, page, pages: Math.ceil(total / limit) });
 }

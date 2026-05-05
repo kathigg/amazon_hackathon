@@ -11,6 +11,7 @@ import {
 } from "@/lib/taxonomy";
 import { formatBillShortDate } from "@/lib/bill-dates";
 import { formatTopicTag } from "@/lib/topics";
+import { withTimeout } from "@/lib/with-timeout";
 
 const ACTIVE_TAXONOMY = getActiveTaxonomy();
 
@@ -25,6 +26,7 @@ interface SearchParams {
 }
 
 const PAGE_SIZE = 12;
+const BILLS_QUERY_TIMEOUT_MS = 2_500;
 
 async function getBills({
   q,
@@ -51,11 +53,20 @@ async function getBills({
   };
 
   if (personalized && userId && !q && !topic) {
-    const billIds = await getPersonalizedBills(userId, PAGE_SIZE);
-    const personalizedBills = await prisma.bill.findMany({
-      where: { id: { in: billIds } },
-      select: billCardSelect,
-    });
+    const billIds = await withTimeout(
+      () => getPersonalizedBills(userId, PAGE_SIZE),
+      BILLS_QUERY_TIMEOUT_MS,
+      []
+    );
+    const personalizedBills = await withTimeout(
+      () =>
+        prisma.bill.findMany({
+          where: { id: { in: billIds } },
+          select: billCardSelect,
+        }),
+      BILLS_QUERY_TIMEOUT_MS,
+      []
+    );
 
     const bills = billIds
       .map((id) => personalizedBills.find((bill) => bill.id === id))
@@ -64,11 +75,13 @@ async function getBills({
     return { bills, total: bills.length, pages: 1, personalized: true };
   }
 
-  const { bills, total, pages } = await getCachedFeedPage(
-    q?.trim() || "",
-    topic?.trim() || "",
-    page,
-    sort
+  const { bills, total, pages } = await withTimeout(
+    () =>
+      getCachedFeedPage(q?.trim() || "", topic?.trim() || "", page, sort).catch(
+        () => ({ bills: [], total: 0, pages: 1 })
+      ),
+    BILLS_QUERY_TIMEOUT_MS,
+    { bills: [], total: 0, pages: 1 }
   );
 
   return {
@@ -116,7 +129,11 @@ export default async function BillsPage({
   searchParams: SearchParams;
 }) {
   const page = Number(searchParams.page ?? 1);
-  const userId = await getCurrentUserId().catch(() => undefined);
+  const userId = await withTimeout(
+    () => getCurrentUserId().catch(() => undefined),
+    1_000,
+    undefined
+  );
   const sort = normalizeSort(searchParams.sort);
   const personalized = searchParams.personalized === "true";
 
@@ -130,10 +147,15 @@ export default async function BillsPage({
         personalized,
         sort,
       }),
-      getBillsBySort({
-        sort: sort === "hot" ? "latest" : "hot",
-        take: 4,
-      }),
+      withTimeout(
+        () =>
+          getBillsBySort({
+            sort: sort === "hot" ? "latest" : "hot",
+            take: 4,
+          }).catch(() => []),
+        BILLS_QUERY_TIMEOUT_MS,
+        []
+      ),
     ]);
 
   const title = getFeedTitle({

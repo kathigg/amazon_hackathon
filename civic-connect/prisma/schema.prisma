@@ -41,6 +41,8 @@ model Bill {
 
   @@index([topicTags])
   @@index([status])
+  @@index([introducedAt])
+  @@index([viewCount, introducedAt])
 }
 
 model Summary {

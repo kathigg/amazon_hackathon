@@ -19,9 +19,8 @@ export default function BillIssueVisual({
   className,
   preferFull = false,
 }: BillIssueVisualProps) {
-  // Prefer a deterministic editorial placeholder over noisy/irrelevant stock
-  // imagery. (We still accept `imageUrl` for future use, but do not default to it.)
-  const imagePath = `/api/bill-image/${billId}`;
+  // Use a static local asset so cards still render when API routes are slow.
+  const imagePath = "/bill-placeholder.svg";
   const label = topicLabel?.trim() || "Policy graphic";
   const capsule = preferFull ? "px-3 py-1.5 text-[10px]" : "px-2.5 py-1 text-[9px]";
 

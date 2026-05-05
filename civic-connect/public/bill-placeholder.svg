@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="Editorial policy graphic">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="55%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e2e8f0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <circle cx="975" cy="170" r="160" fill="#3b82f6" opacity="0.13"/>
+  <rect x="88" y="110" width="280" height="60" rx="30" fill="#ffffff" opacity="0.94"/>
+  <text x="132" y="148" fill="#10243e" font-size="30" font-family="Arial, sans-serif" font-weight="700" letter-spacing="2">POLICY GRAPHIC</text>
+  <rect x="150" y="560" width="36" height="120" rx="16" fill="#10243e" opacity="0.35"/>
+  <rect x="206" y="495" width="36" height="185" rx="16" fill="#3b82f6" opacity="0.55"/>
+  <rect x="262" y="430" width="36" height="250" rx="16" fill="#10243e" opacity="0.78"/>
+  <rect x="318" y="472" width="36" height="208" rx="16" fill="#3b82f6" opacity="0.7"/>
+  <line x1="376" y1="678" x2="1060" y2="678" stroke="#10243e" stroke-opacity="0.15" stroke-width="4"/>
+  <text x="150" y="722" fill="#334155" font-size="42" font-family="Arial, sans-serif" font-weight="700">Editorial issue image</text>
+  <text x="150" y="760" fill="#64748b" font-size="28" font-family="Arial, sans-serif">CivicConnect placeholder visual for federal legislation cards.</text>
+</svg>
