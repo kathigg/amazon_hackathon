@@ -231,7 +231,7 @@ export async function ensureAccountSchema() {
   if (!accountSchemaPromise) {
     accountSchemaPromise = applyAccountSchema().catch((error) => {
       accountSchemaPromise = null;
-      throw error;
+      console.warn("Account schema check skipped:", error);
     });
   }
 
