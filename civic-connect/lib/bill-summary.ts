@@ -11,7 +11,6 @@ export function getSummaryPreview(value?: string | null) {
 
   return value.trim();
 }
-
 export function splitParagraphs(value: string): string[] {
   return value
     .split(/\n\s*\n/)

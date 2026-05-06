@@ -30,7 +30,7 @@ function getModelId(override?: string): string {
   return (
     override ||
     process.env.AWS_BEDROCK_MODEL ||
-    "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    "amazon.nova-micro-v1:0"
   );
 }
 

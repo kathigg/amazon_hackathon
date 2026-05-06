@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { parseImpactSections } from "@/lib/bill-summary";
 
 type SummaryPayload = {
   plainLanguage: string;
@@ -52,6 +53,10 @@ export default function BillSummaryPanel({ billId }: { billId: string }) {
   }, [billId]);
 
   if (status === "ready" && summary) {
+    const impact = parseImpactSections(summary.whyItMatters);
+    const whyText = impact.why || summary.plainLanguage;
+    const whoText = impact.who;
+
     return (
       <div>
         <div className="mb-3 flex items-center justify-between">
@@ -86,14 +91,19 @@ export default function BillSummaryPanel({ billId }: { billId: string }) {
           </div>
         )}
 
-        <div className="mt-6 rounded-xl border border-civic-gold/30 bg-civic-gold/10 p-4">
-          <h3 className="mb-2 flex items-center gap-2 font-semibold text-navy">
-            <span className="text-civic-gold">★</span> Why It Matters And Who It
-            Affects
-          </h3>
-          <p className="text-sm leading-relaxed text-gray-700">
-            {summary.whyItMatters || summary.plainLanguage}
-          </p>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-civic-gold/30 bg-civic-gold/10 p-4">
+            <h3 className="mb-2 flex items-center gap-2 font-semibold text-navy">
+              <span className="text-civic-gold">★</span> Why This Bill Matters
+            </h3>
+            <p className="text-sm leading-relaxed text-gray-700">{whyText}</p>
+          </div>
+          <div className="rounded-xl border border-civic-blue/30 bg-civic-blue/10 p-4">
+            <h3 className="mb-2 font-semibold text-navy">Who This Bill Affects</h3>
+            <p className="text-sm leading-relaxed text-gray-700">
+              {whoText || "Affected groups are still being identified from the bill text."}
+            </p>
+          </div>
         </div>
       </div>
     );

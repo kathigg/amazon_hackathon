@@ -1,9 +1,9 @@
 /**
- * Bill summarization using Bedrock Claude Haiku via forced tool-use for
+ * Bill summarization using Bedrock Nova Micro via forced tool-use for
  * schema-validated structured output.
  *
  * Model is selected via AWS_BEDROCK_MODEL env var, defaulting to
- * us.anthropic.claude-haiku-4-5-20251001-v1:0.
+ * amazon.nova-micro-v1:0.
  */
 
 import { callBedrockStructured } from "./bedrock-structured";
@@ -109,7 +109,7 @@ export async function summarizeBill(
   const aiProvider = "bedrock";
   const aiModel =
     process.env.AWS_BEDROCK_MODEL ||
-    "us.anthropic.claude-haiku-4-5-20251001-v1:0";
+    "amazon.nova-micro-v1:0";
 
   if (!isBedrockConfigured()) {
     return { ...FALLBACK, aiProvider, aiModel };
