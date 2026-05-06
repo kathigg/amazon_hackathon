@@ -137,10 +137,10 @@ export default async function BillsPage({
 
   return (
     <div className="min-h-screen">
-      <section className="border-b border-black/10">
-        <div className="mx-auto max-w-7xl px-4 pb-8 pt-5 sm:px-6 lg:px-8">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
-            <div>
+      <section className="mx-auto max-w-7xl px-4 pt-5 pb-10 sm:px-6 lg:px-8">
+        <div className="grid gap-y-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start lg:gap-x-10">
+          <div className="contents lg:flex lg:flex-col lg:gap-10">
+            <div className="order-1 lg:order-none">
               <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-navy/50">
                 {searchParams.topic
                   ? `${searchParams.topic} Desk`
@@ -155,7 +155,7 @@ export default async function BillsPage({
                 {description}
               </p>
 
-              <form method="GET" className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <form method="GET" className="mt-6 flex flex-col gap-3 sm:flex-row">
                 {searchParams.topic && (
                   <input type="hidden" name="topic" value={searchParams.topic} />
                 )}
@@ -183,168 +183,164 @@ export default async function BillsPage({
               </form>
             </div>
 
-            <aside className="border-t border-black/10 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
-              <div className="space-y-6">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-                    What Our Readers Open Most
-                  </p>
-                  <p className="mt-3 text-sm leading-7 text-navy/70">
-                    The `Hot` feed blends two signals: what our readers are
-                    opening most often and what Congress introduced most
-                    recently.
-                  </p>
+            <div className="order-3 border-t border-black/10 pt-6 lg:order-none lg:border-t-0 lg:pt-0">
+              {bills.length > 0 ? (
+                <div className="space-y-2 border-t border-black/10">
+                  {bills.map((bill) => (
+                    <BillFeedCard
+                      key={bill.id}
+                      id={bill.id}
+                      title={bill.title}
+                      plainLanguage={bill.summary?.plainLanguage}
+                      status={bill.status}
+                      sponsor={bill.sponsor}
+                      topicTags={bill.topicTags}
+                      imageUrl={bill.imageUrl}
+                      introducedAt={bill.introducedAt}
+                      viewCount={bill.viewCount}
+                      isPersonalized={false}
+                    />
+                  ))}
                 </div>
-
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-                    Desks
+              ) : (
+                <div className="border border-black/10 bg-white px-8 py-16 text-center">
+                  <p className="font-display text-3xl text-navy">No bills found</p>
+                  <p className="mt-3 text-sm text-navy/60">
+                    Try a different search or return to the latest desk.
                   </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {ACTIVE_TAXONOMY.prioritizedTerms.map((topic) => (
+                  <Link
+                    href="/bills"
+                    className="mt-6 inline-flex border border-navy px-5 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-navy"
+                  >
+                    Browse Latest
+                  </Link>
+                </div>
+              )}
+
+              {pages > 1 && (
+                <div className="mt-8 flex flex-wrap gap-2">
+                  {Array.from({ length: Math.min(pages, 6) }, (_, index) => {
+                    const pageNumber = index + 1;
+                    return (
                       <Link
-                        key={topic}
-                        href={`/bills?topic=${encodeURIComponent(topic)}`}
-                        className="border border-black/10 bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-navy/70 transition-colors hover:border-navy hover:text-navy"
+                        key={pageNumber}
+                        href={buildBillsHref({
+                          page: String(pageNumber),
+                          q: searchParams.q,
+                          topic: searchParams.topic,
+                          sort: searchParams.sort,
+                          personalized: searchParams.personalized,
+                        })}
+                        className={`inline-flex h-10 min-w-10 items-center justify-center border px-4 text-xs font-semibold uppercase tracking-[0.22em] transition-colors ${
+                          pageNumber === page
+                            ? "border-navy bg-navy text-white"
+                            : "border-black/10 bg-white text-navy hover:border-navy"
+                        }`}
                       >
-                        {topic}
+                        {pageNumber}
                       </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <aside className="order-2 border-t border-black/10 pt-6 lg:order-none lg:border-t-0 lg:border-l lg:pl-8 lg:pt-0">
+            <div className="space-y-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+                  What Our Readers Open Most
+                </p>
+                <p className="mt-3 text-sm leading-7 text-navy/70">
+                  The `Hot` feed blends two signals: what our readers are
+                  opening most often and what Congress introduced most
+                  recently.
+                </p>
+              </div>
+
+              <div className="hidden lg:block">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+                  Desks
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {ACTIVE_TAXONOMY.prioritizedTerms.map((topic) => (
+                    <Link
+                      key={topic}
+                      href={`/bills?topic=${encodeURIComponent(topic)}`}
+                      className="border border-black/10 bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-navy/70 transition-colors hover:border-navy hover:text-navy"
+                    >
+                      {topic}
+                    </Link>
+                  ))}
+                </div>
+                <details className="group mt-3">
+                  <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45 hover:text-navy">
+                    Browse all desks{" "}
+                    <span className="inline-block transition-transform group-open:rotate-180">
+                      ▾
+                    </span>
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    {ACTIVE_TAXONOMY.groups.map((group) => (
+                      <div key={group.label}>
+                        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-navy/40">
+                          {group.label}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {group.terms
+                            .filter(
+                              (topic) =>
+                                !ACTIVE_TAXONOMY.prioritizedTerms.includes(
+                                  topic
+                                )
+                            )
+                            .map((topic) => (
+                              <Link
+                                key={topic}
+                                href={`/bills?topic=${encodeURIComponent(topic)}`}
+                                className="border border-black/10 bg-white px-2 py-1 text-[10px] font-medium tracking-wide text-navy/60 transition-colors hover:border-navy hover:text-navy"
+                              >
+                                {topic}
+                              </Link>
+                            ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
-                  <details className="group mt-3">
-                    <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45 hover:text-navy">
-                      Browse all desks{" "}
-                      <span className="inline-block transition-transform group-open:rotate-180">
-                        ▾
-                      </span>
-                    </summary>
-                    <div className="mt-3 space-y-3">
-                      {ACTIVE_TAXONOMY.groups.map((group) => (
-                        <div key={group.label}>
-                          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-navy/40">
-                            {group.label}
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {group.terms
-                              .filter(
-                                (topic) =>
-                                  !ACTIVE_TAXONOMY.prioritizedTerms.includes(
-                                    topic
-                                  )
-                              )
-                              .map((topic) => (
-                                <Link
-                                  key={topic}
-                                  href={`/bills?topic=${encodeURIComponent(topic)}`}
-                                  className="border border-black/10 bg-white px-2 py-1 text-[10px] font-medium tracking-wide text-navy/60 transition-colors hover:border-navy hover:text-navy"
-                                >
-                                  {topic}
-                                </Link>
-                              ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
+                </details>
+              </div>
+
+              <div className="border-t border-black/10 pt-6">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+                  {sort === "hot"
+                    ? "Fresh From Congress"
+                    : "Opened Most By Our Readers"}
+                </p>
+                <div className="mt-4 space-y-4">
+                  {railBills.map((bill, index) => (
+                    <Link
+                      key={bill.id}
+                      href={`/bill/${bill.id}`}
+                      className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
+                    >
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
+                        {index + 1 < 10 ? `0${index + 1}` : index + 1} ·{" "}
+                        {bill.topicTags[0]
+                          ? formatTopicTag(bill.topicTags[0])
+                          : "General"}
+                      </p>
+                      <h2 className="mt-2 font-display text-2xl leading-tight text-navy">
+                        {bill.title}
+                      </h2>
+                      <p className="mt-2 text-xs uppercase tracking-[0.2em] text-navy/45">
+                        {formatBillShortDate(bill.introducedAt)} ·{" "}
+                        {bill.viewCount.toLocaleString()} readers
+                      </p>
+                    </Link>
+                  ))}
                 </div>
               </div>
-            </aside>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div>
-            {bills.length > 0 ? (
-              <div className="space-y-2 border-t border-black/10">
-                {bills.map((bill) => (
-                  <BillFeedCard
-                    key={bill.id}
-                    id={bill.id}
-                    title={bill.title}
-                    plainLanguage={bill.summary?.plainLanguage}
-                    status={bill.status}
-                    sponsor={bill.sponsor}
-                    topicTags={bill.topicTags}
-                    imageUrl={bill.imageUrl}
-                    introducedAt={bill.introducedAt}
-                    viewCount={bill.viewCount}
-                    isPersonalized={false}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="border border-black/10 bg-white px-8 py-16 text-center">
-                <p className="font-display text-3xl text-navy">No bills found</p>
-                <p className="mt-3 text-sm text-navy/60">
-                  Try a different search or return to the latest desk.
-                </p>
-                <Link
-                  href="/bills"
-                  className="mt-6 inline-flex border border-navy px-5 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-navy"
-                >
-                  Browse Latest
-                </Link>
-              </div>
-            )}
-
-            {pages > 1 && (
-              <div className="mt-8 flex flex-wrap gap-2">
-                {Array.from({ length: Math.min(pages, 6) }, (_, index) => {
-                  const pageNumber = index + 1;
-                  return (
-                    <Link
-                      key={pageNumber}
-                      href={buildBillsHref({
-                        page: String(pageNumber),
-                        q: searchParams.q,
-                        topic: searchParams.topic,
-                        sort: searchParams.sort,
-                        personalized: searchParams.personalized,
-                      })}
-                      className={`inline-flex h-10 min-w-10 items-center justify-center border px-4 text-xs font-semibold uppercase tracking-[0.22em] transition-colors ${
-                        pageNumber === page
-                          ? "border-navy bg-navy text-white"
-                          : "border-black/10 bg-white text-navy hover:border-navy"
-                      }`}
-                    >
-                      {pageNumber}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <aside className="border-t border-black/10 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-              {sort === "hot"
-                ? "Fresh From Congress"
-                : "Opened Most By Our Readers"}
-            </p>
-            <div className="mt-4 space-y-4">
-              {railBills.map((bill, index) => (
-                <Link
-                  key={bill.id}
-                  href={`/bill/${bill.id}`}
-                  className="block border-t border-black/10 pt-4 transition-colors hover:text-civic-blue"
-                >
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
-                    {index + 1 < 10 ? `0${index + 1}` : index + 1} ·{" "}
-                    {bill.topicTags[0]
-                      ? formatTopicTag(bill.topicTags[0])
-                      : "General"}
-                  </p>
-                  <h2 className="mt-2 font-display text-2xl leading-tight text-navy">
-                    {bill.title}
-                  </h2>
-                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-navy/45">
-                    {formatBillShortDate(bill.introducedAt)} ·{" "}
-                    {bill.viewCount.toLocaleString()} readers
-                  </p>
-                </Link>
-              ))}
             </div>
           </aside>
         </div>
