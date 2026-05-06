@@ -50,13 +50,13 @@ export default async function RepresentativeStances({
       <div className="card p-6 sm:p-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-navy/70">
+            <p className="text-base font-semibold uppercase tracking-[0.22em] text-navy/70">
               Auto-Whip
             </p>
-            <h2 className="mt-2 font-display text-3xl leading-none text-navy">
+            <h2 className="mt-2 font-display text-4xl leading-none text-navy">
               Where {chamberLabel} {representativeLabel} currently stand
             </h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-navy/68">
+            <p className="mt-3 max-w-3xl text-base leading-8 text-navy/68">
               Built from official statements, public releases, and voting records where they exist. Members without enough evidence are marked as no position.
             </p>
           </div>

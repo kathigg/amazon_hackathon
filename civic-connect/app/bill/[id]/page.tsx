@@ -184,12 +184,12 @@ export default async function BillDetailPage({
   ) as StanceWithCosponsors | undefined;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 pb-6 pt-3 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 pb-6 pt-1 sm:px-6 lg:px-8">
       <BillViewTracker billId={bill.id} topics={bill.topicTags} />
 
       <Link
         href="/bills"
-        className="mb-5 inline-flex items-center gap-2 text-sm text-gray-500 transition-colors hover:text-navy"
+        className="mb-3 inline-flex items-center gap-2 text-sm text-gray-500 transition-colors hover:text-navy"
       >
         <ArrowLeft size={16} /> Back to Bills
       </Link>

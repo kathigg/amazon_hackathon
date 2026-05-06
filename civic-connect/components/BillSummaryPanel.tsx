@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { parseImpactSections } from "@/lib/bill-summary";
+import { splitParagraphs, splitWhyAndWho } from "@/lib/bill-summary";
 
 type SummaryPayload = {
   plainLanguage: string;
@@ -53,9 +53,8 @@ export default function BillSummaryPanel({ billId }: { billId: string }) {
   }, [billId]);
 
   if (status === "ready" && summary) {
-    const impact = parseImpactSections(summary.whyItMatters);
-    const whyText = impact.why || summary.plainLanguage;
-    const whoText = impact.who;
+    const { why, who } = splitWhyAndWho(summary.whyItMatters || "");
+    const whyText = why || summary.plainLanguage;
 
     return (
       <div>
@@ -68,9 +67,11 @@ export default function BillSummaryPanel({ billId }: { billId: string }) {
           </div>
         </div>
 
-        <p className="mb-6 leading-relaxed text-gray-700">
-          {summary.plainLanguage}
-        </p>
+        <div className="mb-6 space-y-4 leading-relaxed text-gray-700">
+          {splitParagraphs(summary.plainLanguage).map((para, i) => (
+            <p key={i}>{para}</p>
+          ))}
+        </div>
 
         {summary.keyProvisions.length > 0 && (
           <div>
@@ -91,19 +92,19 @@ export default function BillSummaryPanel({ billId }: { billId: string }) {
           </div>
         )}
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className={`mt-6 grid gap-4 ${who ? "md:grid-cols-2" : "grid-cols-1"}`}>
           <div className="rounded-xl border border-civic-gold/30 bg-civic-gold/10 p-4">
             <h3 className="mb-2 flex items-center gap-2 font-semibold text-navy">
               <span className="text-civic-gold">★</span> Why This Bill Matters
             </h3>
             <p className="text-sm leading-relaxed text-gray-700">{whyText}</p>
           </div>
-          <div className="rounded-xl border border-civic-blue/30 bg-civic-blue/10 p-4">
-            <h3 className="mb-2 font-semibold text-navy">Who This Bill Affects</h3>
-            <p className="text-sm leading-relaxed text-gray-700">
-              {whoText || "Affected groups are still being identified from the bill text."}
-            </p>
-          </div>
+          {who && (
+            <div className="rounded-xl border border-civic-blue/30 bg-civic-blue/10 p-4">
+              <h3 className="mb-2 font-semibold text-navy">Who This Bill Affects</h3>
+              <p className="text-sm leading-relaxed text-gray-700">{who}</p>
+            </div>
+          )}
         </div>
       </div>
     );
