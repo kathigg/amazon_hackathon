@@ -316,9 +316,12 @@ export default async function BillDetailPage({
                     const { why, who } = splitWhyAndWho(
                       whyItMatters || plainLanguage || ""
                     );
+                    const gridCols = who ? "md:grid-cols-2" : "grid-cols-1";
+                    const boxClass =
+                      "w-full rounded-xl border p-4";
                     return (
-                      <div className="mt-6 grid gap-4 md:grid-cols-2">
-                        <div className="rounded-xl border border-civic-gold/30 bg-civic-gold/10 p-4">
+                      <div className={`mt-6 grid gap-4 ${gridCols}`}>
+                        <div className={`${boxClass} border-civic-gold/30 bg-civic-gold/10`}>
                           <h3 className="mb-2 flex items-center gap-2 font-semibold text-navy">
                             <span className="text-civic-gold">★</span> Why this matters
                           </h3>
@@ -327,7 +330,7 @@ export default async function BillDetailPage({
                           </p>
                         </div>
                         {who && (
-                          <div className="rounded-xl border border-civic-blue/30 bg-civic-blue/10 p-4">
+                          <div className={`${boxClass} border-civic-blue/30 bg-civic-blue/10`}>
                             <h3 className="mb-2 flex items-center gap-2 font-semibold text-navy">
                               <span className="text-civic-blue">●</span> Who this affects
                             </h3>
