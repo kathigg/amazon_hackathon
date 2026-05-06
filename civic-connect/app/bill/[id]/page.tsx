@@ -15,7 +15,11 @@ import BillSummaryPanel from "@/components/BillSummaryPanel";
 import { getCurrentUser } from "@/lib/user-tracking";
 import { getBillChamberFocus } from "@/lib/legislative";
 import { getRelatedOrganizationsAndEvents } from "@/lib/organization-matching";
-import { getSummaryPreview } from "@/lib/bill-summary";
+import {
+  getSummaryPreview,
+  splitParagraphs,
+  splitWhyAndWho,
+} from "@/lib/bill-summary";
 import { formatTopicTag } from "@/lib/topics";
 import { parseTerm } from "@/lib/taxonomy";
 import { formatBillDate } from "@/lib/bill-dates";
@@ -277,9 +281,11 @@ export default async function BillDetailPage({
                   <FeedbackButton billId={bill.id} />
                 </div>
                 {plainLanguage && (
-                  <p className="mb-6 leading-relaxed text-gray-700">
-                    {plainLanguage}
-                  </p>
+                  <div className="mb-6 space-y-4 leading-relaxed text-gray-700">
+                    {splitParagraphs(plainLanguage).map((para, i) => (
+                      <p key={i}>{para}</p>
+                    ))}
+                  </div>
                 )}
 
                 {bill.summary.keyProvisions.length > 0 && (
@@ -305,17 +311,34 @@ export default async function BillDetailPage({
                   </div>
                 )}
 
-                {(whyItMatters || plainLanguage) && (
-                  <div className="mt-6 rounded-xl border border-civic-gold/30 bg-civic-gold/10 p-4">
-                    <h3 className="mb-2 flex items-center gap-2 font-semibold text-navy">
-                      <span className="text-civic-gold">★</span> Why It Matters
-                      And Who It Affects
-                    </h3>
-                    <p className="text-sm leading-relaxed text-gray-700">
-                      {whyItMatters || plainLanguage}
-                    </p>
-                  </div>
-                )}
+                {(whyItMatters || plainLanguage) &&
+                  (() => {
+                    const { why, who } = splitWhyAndWho(
+                      whyItMatters || plainLanguage || ""
+                    );
+                    return (
+                      <div className="mt-6 grid gap-4 md:grid-cols-2">
+                        <div className="rounded-xl border border-civic-gold/30 bg-civic-gold/10 p-4">
+                          <h3 className="mb-2 flex items-center gap-2 font-semibold text-navy">
+                            <span className="text-civic-gold">★</span> Why this matters
+                          </h3>
+                          <p className="text-sm leading-relaxed text-gray-700">
+                            {why}
+                          </p>
+                        </div>
+                        {who && (
+                          <div className="rounded-xl border border-civic-blue/30 bg-civic-blue/10 p-4">
+                            <h3 className="mb-2 flex items-center gap-2 font-semibold text-navy">
+                              <span className="text-civic-blue">●</span> Who this affects
+                            </h3>
+                            <p className="text-sm leading-relaxed text-gray-700">
+                              {who}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
               </div>
             ) : bill.summary ? (
               <div>

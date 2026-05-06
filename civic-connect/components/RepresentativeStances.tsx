@@ -50,7 +50,7 @@ export default async function RepresentativeStances({
       <div className="card p-6 sm:p-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-navy/70">
               Auto-Whip
             </p>
             <h2 className="mt-2 font-display text-3xl leading-none text-navy">
