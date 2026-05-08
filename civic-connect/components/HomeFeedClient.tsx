@@ -5,7 +5,11 @@ import Link from "next/link";
 import BillFeedCard from "@/components/BillFeedCard";
 import BillIssueVisual from "@/components/BillIssueVisual";
 import { getSummaryPreview } from "@/lib/bill-summary";
-import { formatBillDate, formatBillShortDate } from "@/lib/bill-dates";
+import {
+  formatBillDate,
+  formatBillShortDate,
+  formatRelativeBillTime,
+} from "@/lib/bill-dates";
 import { formatTopicTag } from "@/lib/topics";
 
 type FeedBill = {
@@ -14,6 +18,7 @@ type FeedBill = {
   sponsor: string;
   status: string;
   introducedAt: string;
+  latestActionAt: string | null;
   topicTags: string[];
   imageUrl: string | null;
   viewCount: number;
@@ -22,7 +27,7 @@ type FeedBill = {
 
 type HomeFeedResponse = {
   latestBills: FeedBill[];
-  hotBills: FeedBill[];
+  recentBills: FeedBill[];
 };
 
 export default function HomeFeedClient() {
@@ -37,7 +42,6 @@ export default function HomeFeedClient() {
       try {
         const response = await fetch("/api/home-feed", {
           signal: controller.signal,
-          cache: "no-store",
         });
         if (!response.ok) return;
         const payload = (await response.json()) as HomeFeedResponse;
@@ -73,11 +77,12 @@ export default function HomeFeedClient() {
   }
 
   const latestBills = data?.latestBills ?? [];
-  const hotBills = data?.hotBills ?? [];
+  const recentBills = data?.recentBills ?? [];
   const leadBill = latestBills[0];
   const latestFeed = latestBills.slice(0, 6);
-  const hotRail = hotBills.slice(0, 3);
+  const recentRail = recentBills.slice(0, 3);
   const leadSummary = getSummaryPreview(leadBill?.summary?.plainLanguage);
+  const leadActionTime = formatRelativeBillTime(leadBill?.latestActionAt);
 
   if (!leadBill) {
     return (
@@ -116,7 +121,7 @@ export default function HomeFeedClient() {
                 <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-navy/45">
                   <span>{leadBill.id.toUpperCase()}</span>
                   <span>{formatBillDate(leadBill.introducedAt)}</span>
-                  <span>{leadBill.viewCount.toLocaleString()} readers</span>
+                  <span>{leadActionTime ? `Updated ${leadActionTime}` : "Most recent filing"}</span>
                 </div>
                 <div className="mt-8 overflow-hidden border border-black/10 bg-white">
                   <BillIssueVisual
@@ -138,10 +143,10 @@ export default function HomeFeedClient() {
 
             <aside>
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-                Trending Now
+                More Recent Bills
               </p>
               <div className="mt-4 space-y-4">
-                {hotRail.map((bill, index) => (
+                {recentRail.map((bill, index) => (
                   <Link
                     key={bill.id}
                     href={`/bill/${bill.id}`}
@@ -155,8 +160,10 @@ export default function HomeFeedClient() {
                       {bill.title}
                     </h2>
                     <p className="mt-2 text-xs uppercase tracking-[0.2em] text-navy/45">
-                      {formatBillShortDate(bill.introducedAt)} ·{" "}
-                      {bill.viewCount.toLocaleString()} readers
+                      {formatBillShortDate(bill.introducedAt)}
+                      {formatRelativeBillTime(bill.latestActionAt)
+                        ? ` · Updated ${formatRelativeBillTime(bill.latestActionAt)}`
+                        : " · recently introduced"}
                     </p>
                   </Link>
                 ))}
@@ -196,6 +203,7 @@ export default function HomeFeedClient() {
               topicTags={bill.topicTags}
               imageUrl={bill.imageUrl}
               introducedAt={bill.introducedAt}
+              latestActionAt={bill.latestActionAt}
               viewCount={bill.viewCount}
             />
           ))}
@@ -204,4 +212,3 @@ export default function HomeFeedClient() {
     </>
   );
 }
-

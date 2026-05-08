@@ -22,7 +22,11 @@ import {
 } from "@/lib/bill-summary";
 import { formatTopicTag } from "@/lib/topics";
 import { parseTerm } from "@/lib/taxonomy";
-import { formatBillDate } from "@/lib/bill-dates";
+import {
+  formatBillDate,
+  formatBillDateTime,
+  formatRelativeBillTime,
+} from "@/lib/bill-dates";
 import { withTimeout } from "@/lib/with-timeout";
 import { fetchBillText } from "@/lib/congress";
 import { preprocessBillText } from "@/lib/bill-text";
@@ -131,6 +135,7 @@ export default async function BillDetailPage({
     { orgs: [], events: [] }
   );
   const chamberFocus = getBillChamberFocus(bill.status, bill.type);
+  const latestActionRelative = formatRelativeBillTime(bill.latestActionAt);
   const plainLanguage = getSummaryPreview(bill.summary?.plainLanguage);
   const whyItMatters = getSummaryPreview(bill.summary?.whyItMatters);
   const hasUsableSummary =
@@ -231,6 +236,14 @@ export default async function BillDetailPage({
                     <p className="text-sm font-medium text-navy">
                       {bill.status}
                     </p>
+                    {bill.latestActionAt && (
+                      <p
+                        className="mt-1 text-xs text-gray-500"
+                        title={formatBillDateTime(bill.latestActionAt)}
+                      >
+                        Updated {latestActionRelative ?? formatBillDate(bill.latestActionAt)}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

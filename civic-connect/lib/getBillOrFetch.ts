@@ -8,6 +8,7 @@ import { fetchCosponsors } from "./congress";
 import { classifyBillTaxonomy } from "./taxonomy/classify";
 import { fetchBillVotes } from "./votes";
 import { parseIntroducedDate } from "./bill-ingestion";
+import { parseCongressDateTime } from "./bill-dates";
 
 const BASE = "https://api.congress.gov/v3";
 function getCongressApiKey() {
@@ -72,6 +73,11 @@ export async function getBillOrFetch(billId: string) {
       status,
       introducedAt: parseIntroducedDate(
         bill.introducedDate,
+        bill.latestAction?.actionDate
+      ),
+      latestActionAt: parseCongressDateTime(
+        bill.latestAction?.actionDate,
+        bill.latestAction?.actionTime,
         bill.latestAction?.actionDate
       ),
       topicTags: apiClassification.topicTags,

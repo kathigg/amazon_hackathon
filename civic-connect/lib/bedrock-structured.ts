@@ -30,7 +30,7 @@ function getModelId(override?: string): string {
   return (
     override ||
     process.env.AWS_BEDROCK_MODEL ||
-    "amazon.nova-micro-v1:0"
+    "amazon.nova-lite-v1:0"
   );
 }
 

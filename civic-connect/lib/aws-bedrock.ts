@@ -97,7 +97,7 @@ async function callBedrock(config: BedrockConfig, prompt: string): Promise<strin
 function getBedrockConfig(): BedrockConfig {
   return {
     region: process.env.AWS_REGION || "us-east-1",
-    model: process.env.AWS_BEDROCK_MODEL || "amazon.nova-micro-v1:0",
+    model: process.env.AWS_BEDROCK_MODEL || "amazon.nova-lite-v1:0",
   };
 }
 

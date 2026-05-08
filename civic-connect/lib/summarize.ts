@@ -1,9 +1,9 @@
 /**
- * Bill summarization using Bedrock Nova Micro via forced tool-use for
+ * Bill summarization using Bedrock Nova Lite via forced tool-use for
  * schema-validated structured output.
  *
  * Model is selected via AWS_BEDROCK_MODEL env var, defaulting to
- * amazon.nova-micro-v1:0.
+ * amazon.nova-lite-v1:0.
  */
 
 import { callBedrockStructured } from "./bedrock-structured";
@@ -101,6 +101,7 @@ const FALLBACK: BillSummary = {
   keyProvisions: [],
   whyItMatters: "",
 };
+const SUMMARY_TIMEOUT_MS = Number(process.env.SUMMARY_TIMEOUT_MS ?? 60_000);
 
 export async function summarizeBill(
   title: string,
@@ -109,7 +110,7 @@ export async function summarizeBill(
   const aiProvider = "bedrock";
   const aiModel =
     process.env.AWS_BEDROCK_MODEL ||
-    "amazon.nova-micro-v1:0";
+    "amazon.nova-lite-v1:0";
 
   if (!isBedrockConfigured()) {
     return { ...FALLBACK, aiProvider, aiModel };
@@ -127,7 +128,7 @@ export async function summarizeBill(
           maxTokens: 2400,
           temperature: 0.2,
         }),
-      60_000,
+      SUMMARY_TIMEOUT_MS,
       null
     );
 

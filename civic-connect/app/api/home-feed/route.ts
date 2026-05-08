@@ -2,21 +2,25 @@ import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withTimeout } from "@/lib/with-timeout";
+import { getBillImageRecord } from "@/lib/bill-image-categories";
 
 const HOME_FEED_TIMEOUT_MS = 2_500;
 
+export const dynamic = "force-dynamic";
+
 const getCachedHomeFeed = unstable_cache(
   async () => {
-    const [latestBills, hotBills] = await Promise.all([
+    const [latestBills, recentBills] = await Promise.all([
       prisma.bill.findMany({
         take: 8,
-        orderBy: [{ introducedAt: "desc" }, { viewCount: "desc" }],
+        orderBy: [{ introducedAt: "desc" }, { updatedAt: "desc" }, { id: "desc" }],
         select: {
           id: true,
           title: true,
           sponsor: true,
           status: true,
           introducedAt: true,
+          latestActionAt: true,
           topicTags: true,
           imageUrl: true,
           viewCount: true,
@@ -25,13 +29,15 @@ const getCachedHomeFeed = unstable_cache(
       }),
       prisma.bill.findMany({
         take: 6,
-        orderBy: [{ viewCount: "desc" }, { introducedAt: "desc" }],
+        skip: 1,
+        orderBy: [{ introducedAt: "desc" }, { updatedAt: "desc" }, { id: "desc" }],
         select: {
           id: true,
           title: true,
           sponsor: true,
           status: true,
           introducedAt: true,
+          latestActionAt: true,
           topicTags: true,
           imageUrl: true,
           viewCount: true,
@@ -40,17 +46,21 @@ const getCachedHomeFeed = unstable_cache(
       }),
     ]);
 
-    return { latestBills, hotBills };
+    return {
+      latestBills: withResolvedBillImages(latestBills),
+      recentBills: withResolvedBillImages(recentBills),
+    };
   },
-  ["home-feed-api-v1"],
+  ["home-feed-api-v2"],
   { revalidate: 60 }
 );
 
 export async function GET() {
   const data = await withTimeout(
-    () => getCachedHomeFeed().catch(() => ({ latestBills: [], hotBills: [] })),
+    () =>
+      getCachedHomeFeed().catch(() => ({ latestBills: [], recentBills: [] })),
     HOME_FEED_TIMEOUT_MS,
-    { latestBills: [], hotBills: [] }
+    { latestBills: [], recentBills: [] }
   );
 
   return NextResponse.json(data, {
@@ -60,3 +70,11 @@ export async function GET() {
   });
 }
 
+function withResolvedBillImages<
+  T extends { id: string; topicTags: string[]; imageUrl: string | null },
+>(bills: T[]): T[] {
+  return bills.map((bill) => ({
+    ...bill,
+    imageUrl: getBillImageRecord(bill.id, bill.topicTags).imageUrl,
+  }));
+}

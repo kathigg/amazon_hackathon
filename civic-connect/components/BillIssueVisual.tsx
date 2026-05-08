@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import { getBillImageRecord } from "@/lib/bill-image-categories";
 
 interface BillIssueVisualProps {
   billId: string;
@@ -16,12 +17,13 @@ export default function BillIssueVisual({
   billId,
   title,
   topicLabel,
-  topicTags: _topicTags,
+  topicTags,
   imageUrl,
   className,
   preferFull = false,
 }: BillIssueVisualProps) {
-  const imagePath = imageUrl || `/api/bill-image/${billId}`;
+  const topicImage = getBillImageRecord(billId, topicTags).imageUrl;
+  const imagePath = isTrustedStoredImage(imageUrl) ? imageUrl : topicImage;
   const label = topicLabel?.trim() || "Policy graphic";
   const capsule = preferFull ? "px-3 py-1.5 text-[10px]" : "px-2.5 py-1 text-[9px]";
 
@@ -55,5 +57,17 @@ export default function BillIssueVisual({
         {label}
       </div>
     </div>
+  );
+}
+
+function isTrustedStoredImage(imageUrl?: string | null): imageUrl is string {
+  if (!imageUrl) {
+    return false;
+  }
+
+  return (
+    imageUrl.startsWith("/topic-images/") ||
+    imageUrl.includes("amazonaws.com/") ||
+    imageUrl.includes("cloudfront.net/")
   );
 }

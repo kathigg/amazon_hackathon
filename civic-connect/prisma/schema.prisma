@@ -16,6 +16,7 @@ model Bill {
   sponsor      String
   status       String
   introducedAt DateTime
+  latestActionAt DateTime?
   topicTags    String[]
   topicTagsSource String?  // "api" | "llm" | "keyword" | "none" | null (legacy)
   fullTextUrl  String?
@@ -42,6 +43,7 @@ model Bill {
   @@index([topicTags])
   @@index([status])
   @@index([introducedAt])
+  @@index([latestActionAt])
   @@index([viewCount, introducedAt])
 }
 

@@ -4,6 +4,7 @@ import { prisma } from "./prisma";
 const accountSchemaStatements = [
   `ALTER TABLE "Bill" ADD COLUMN IF NOT EXISTS "topicTagsSource" TEXT`,
   `ALTER TABLE "Bill" ADD COLUMN IF NOT EXISTS "fullTextUrl" TEXT`,
+  `ALTER TABLE "Bill" ADD COLUMN IF NOT EXISTS "latestActionAt" TIMESTAMP(3)`,
   `ALTER TABLE "Bill" ADD COLUMN IF NOT EXISTS "imageUrl" TEXT`,
   `ALTER TABLE "Bill" ADD COLUMN IF NOT EXISTS "imageThumbnailUrl" TEXT`,
   `ALTER TABLE "Bill" ADD COLUMN IF NOT EXISTS "imageTitle" TEXT`,
@@ -20,6 +21,7 @@ const accountSchemaStatements = [
   `ALTER TABLE "Bill" ALTER COLUMN "viewCount" SET DEFAULT 0`,
   `ALTER TABLE "Bill" ALTER COLUMN "viewCount" SET NOT NULL`,
   `ALTER TABLE "Bill" ADD COLUMN IF NOT EXISTS "breakingAt" TIMESTAMP(3)`,
+  `CREATE INDEX IF NOT EXISTS "Bill_latestActionAt_idx" ON "Bill"("latestActionAt")`,
   `ALTER TABLE "Summary" ADD COLUMN IF NOT EXISTS "whyItMatters" TEXT DEFAULT ''`,
   `UPDATE "Summary" SET "whyItMatters" = '' WHERE "whyItMatters" IS NULL`,
   `ALTER TABLE "Summary" ALTER COLUMN "whyItMatters" SET DEFAULT ''`,

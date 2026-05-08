@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 import { prisma } from "../lib/prisma";
-import { parseCongressDate } from "../lib/bill-dates";
+import { parseCongressDate, parseCongressDateTime } from "../lib/bill-dates";
 
 const BASE = "https://api.congress.gov/v3";
 
@@ -36,10 +36,17 @@ async function fetchOfficialIntroducedDate(
     throw new Error("Congress API returned no bill payload");
   }
 
-  return parseCongressDate(
-    bill.introducedDate,
-    bill.latestAction?.actionDate
-  );
+  return {
+    introducedAt: parseCongressDate(
+      bill.introducedDate,
+      bill.latestAction?.actionDate
+    ),
+    latestActionAt: parseCongressDateTime(
+      bill.latestAction?.actionDate,
+      bill.latestAction?.actionTime,
+      bill.latestAction?.actionDate
+    ),
+  };
 }
 
 async function main() {
@@ -50,6 +57,7 @@ async function main() {
       type: true,
       number: true,
       introducedAt: true,
+      latestActionAt: true,
     },
     orderBy: { introducedAt: "desc" },
   });
@@ -65,22 +73,27 @@ async function main() {
     checked += 1;
 
     try {
-      const officialDate = await fetchOfficialIntroducedDate(
+      const officialDates = await fetchOfficialIntroducedDate(
         bill.congress,
         bill.type,
         bill.number
       );
       const currentIso = bill.introducedAt.toISOString();
-      const officialIso = officialDate.toISOString();
+      const officialIso = officialDates.introducedAt.toISOString();
+      const currentActionIso = bill.latestActionAt?.toISOString() ?? null;
+      const officialActionIso = officialDates.latestActionAt.toISOString();
 
-      if (currentIso !== officialIso) {
+      if (currentIso !== officialIso || currentActionIso !== officialActionIso) {
         await prisma.bill.update({
           where: { id: bill.id },
-          data: { introducedAt: officialDate },
+          data: {
+            introducedAt: officialDates.introducedAt,
+            latestActionAt: officialDates.latestActionAt,
+          },
         });
         updated += 1;
         console.log(
-          `[updated ] ${bill.id.padEnd(20)} ${currentIso} -> ${officialIso}`
+          `[updated ] ${bill.id.padEnd(20)} introduced ${currentIso} -> ${officialIso}; action ${currentActionIso ?? "null"} -> ${officialActionIso}`
         );
       } else {
         unchanged += 1;

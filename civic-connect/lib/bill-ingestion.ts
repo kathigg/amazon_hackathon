@@ -2,7 +2,7 @@ import { prisma } from "./prisma";
 import { fetchBillDetail, fetchRecentBills, type CongressBill } from "./congress";
 import { classifyBillTaxonomy } from "./taxonomy/classify";
 import { isMajorBillAction } from "./breaking-bills";
-import { parseCongressDate } from "./bill-dates";
+import { parseCongressDate, parseCongressDateTime } from "./bill-dates";
 
 export const BILL_METADATA_INGEST_LIMIT = 100;
 
@@ -20,7 +20,15 @@ export async function upsertBillMetadataFromCongress(bill: CongressBill) {
   const sponsor = detail?.sponsor ?? bill.sponsors?.[0]?.fullName ?? "Unknown";
   const status = bill.latestAction?.text ?? "Unknown";
   const candidateIntroducedAt = parseIntroducedDate(
-    detail?.introducedDate ?? bill.introducedDate,
+    // Congress list responses no longer include introducedDate reliably.
+    // Use the per-bill detail endpoint as the source of truth, then fall back
+    // to latest action only when the detail date is unavailable.
+    detail?.introducedDate ?? undefined,
+    detail?.latestActionDate ?? bill.latestAction?.actionDate
+  );
+  const latestActionAt = parseCongressDateTime(
+    detail?.latestActionDate ?? bill.latestAction?.actionDate,
+    detail?.latestActionTime ?? bill.latestAction?.actionTime,
     detail?.latestActionDate ?? bill.latestAction?.actionDate
   );
   const existing = await prisma.bill.findUnique({
@@ -50,6 +58,7 @@ export async function upsertBillMetadataFromCongress(bill: CongressBill) {
       sponsor,
       status,
       introducedAt,
+      latestActionAt,
       topicTags,
       topicTagsSource:
         topicTags.length === classification.topicTags.length && topicTags.length > 0
@@ -68,6 +77,7 @@ export async function upsertBillMetadataFromCongress(bill: CongressBill) {
       sponsor,
       status,
       introducedAt,
+      latestActionAt,
       topicTags,
       topicTagsSource: topicTags.length > 0 ? classification.source : "none",
       fullTextUrl: null,

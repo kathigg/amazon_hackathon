@@ -108,6 +108,19 @@ const CATEGORY_BY_TERM = new Map(
 );
 
 const IMAGE_MANIFEST = manifest as Record<string, string[]>;
+const LOCAL_TOPIC_KEYS = new Set([
+  "immigration",
+  "economy",
+  "transportation",
+  "security",
+  "technology",
+  "energy",
+  "general",
+  "healthcare",
+  "education",
+  "tax",
+  "housing",
+]);
 const GENERAL_FALLBACK =
   "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/US_Capitol_dome_Jan_2006.jpg/1280px-US_Capitol_dome_Jan_2006.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail";
 
@@ -134,8 +147,14 @@ export function getBillImageRecord(
 export function resolveBillImageCategory(topicTags: readonly string[]) {
   for (const storedTag of topicTags) {
     const parsed = parseTerm(storedTag);
-    if (!parsed) continue;
-    const category = CATEGORY_BY_TERM.get(parsed.value);
+    const category = parsed ? CATEGORY_BY_TERM.get(parsed.value) : null;
+    if (category) {
+      return category;
+    }
+  }
+
+  for (const storedTag of topicTags) {
+    const category = resolveCategoryFromLooseTag(storedTag);
     if (category) {
       return category;
     }
@@ -145,13 +164,64 @@ export function resolveBillImageCategory(topicTags: readonly string[]) {
 }
 
 function getCategoryImagePool(category: CategoryConfig) {
-  const primary = category.manifestKeys
+  const remoteImages = category.manifestKeys
     .flatMap((key) => IMAGE_MANIFEST[key] ?? [])
     .filter((value) => Boolean(value));
+  const localFallbacks = category.manifestKeys.flatMap(getLocalTopicImages);
+  const primary = Array.from(new Set([...remoteImages, ...localFallbacks]));
   if (primary.length > 0) {
-    return Array.from(new Set(primary));
+    return primary;
   }
-  return IMAGE_MANIFEST.general ?? [];
+  return [...(IMAGE_MANIFEST.general ?? []), ...getLocalTopicImages("general")];
+}
+
+function getLocalTopicImages(key: string) {
+  if (!LOCAL_TOPIC_KEYS.has(key)) {
+    return [];
+  }
+
+  return [1, 2, 3].map((index) => `/topic-images/${key}/${key}-${index}.svg`);
+}
+
+function resolveCategoryFromLooseTag(storedTag: string) {
+  const tag = storedTag.toLowerCase();
+  const match = CATEGORY_CONFIG.find((category) =>
+    category.terms.some((term) => tag.includes(term.toLowerCase()))
+  );
+  if (match) {
+    return match;
+  }
+
+  if (/(immigration|border|citizenship|visa|asylum|refugee)/.test(tag)) {
+    return findCategory("rights-justice");
+  }
+  if (/(health|medicare|medicaid|hospital|drug|veteran|social welfare)/.test(tag)) {
+    return findCategory("health-welfare");
+  }
+  if (/(tax|finance|econom|commerce|labor|employment|trade|business)/.test(tag)) {
+    return findCategory("economy");
+  }
+  if (/(environment|public land|water|forest|wildfire|species|agriculture|food)/.test(tag)) {
+    return findCategory("environment-land");
+  }
+  if (/(infrastructure|transport|energy|housing|rail|road|waterway)/.test(tag)) {
+    return findCategory("infrastructure-energy");
+  }
+  if (/(defense|military|security|foreign|emergency|armed forces)/.test(tag)) {
+    return findCategory("defense-foreign");
+  }
+  if (/(education|school|science|technology|communication|privacy|broadband|arts|culture)/.test(tag)) {
+    return findCategory("knowledge-culture");
+  }
+  if (/(government|congress|election|politics|agency|federal)/.test(tag)) {
+    return findCategory("government");
+  }
+
+  return null;
+}
+
+function findCategory(slug: BillImageCategorySlug) {
+  return CATEGORY_CONFIG.find((category) => category.slug === slug)!;
 }
 
 function hashString(value: string) {

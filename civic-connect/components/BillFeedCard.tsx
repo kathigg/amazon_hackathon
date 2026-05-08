@@ -3,7 +3,7 @@
 import Link from "next/link";
 import BillIssueVisual from "@/components/BillIssueVisual";
 import { getSummaryPreview } from "@/lib/bill-summary";
-import { formatBillShortDate } from "@/lib/bill-dates";
+import { formatBillShortDate, formatRelativeBillTime } from "@/lib/bill-dates";
 import { formatTopicTag } from "@/lib/topics";
 
 interface BillFeedCardProps {
@@ -15,6 +15,7 @@ interface BillFeedCardProps {
   topicTags: string[];
   imageUrl?: string | null;
   introducedAt: Date | string;
+  latestActionAt?: Date | string | null;
   viewCount: number;
   isPersonalized?: boolean;
 }
@@ -28,11 +29,13 @@ export default function BillFeedCard({
   topicTags,
   imageUrl,
   introducedAt,
+  latestActionAt,
   viewCount,
   isPersonalized,
 }: BillFeedCardProps) {
   const primaryTopic = topicTags[0] ? formatTopicTag(topicTags[0]) : "General";
   const summaryPreview = getSummaryPreview(plainLanguage);
+  const actionTime = formatRelativeBillTime(latestActionAt);
 
   return (
     <Link
@@ -45,6 +48,7 @@ export default function BillFeedCard({
             <span>{primaryTopic}</span>
             <span>{id.toUpperCase()}</span>
             <span>{formatBillShortDate(introducedAt)}</span>
+            {actionTime && <span>Updated {actionTime}</span>}
             <span>{viewCount.toLocaleString()} readers</span>
             {isPersonalized && <span className="text-civic-red">For You</span>}
           </div>

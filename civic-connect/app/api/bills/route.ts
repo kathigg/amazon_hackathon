@@ -35,7 +35,14 @@ export async function GET(req: NextRequest) {
     [[], 0] as const
   );
 
-  return NextResponse.json({ bills, total, page, pages: Math.ceil(total / limit) });
+  return NextResponse.json(
+    { bills, total, page, pages: Math.ceil(total / limit) },
+    {
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    }
+  );
 }
 
 function normalizeSort(sort?: string): BillFeedSort {

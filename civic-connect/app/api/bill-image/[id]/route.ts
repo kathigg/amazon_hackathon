@@ -11,8 +11,9 @@ export async function GET(
     select: { id: true, topicTags: true, imageUrl: true },
   });
 
-  if (bill?.imageUrl) {
-    return NextResponse.redirect(bill.imageUrl, {
+  const storedImageUrl = bill?.imageUrl ?? null;
+  if (isTrustedStoredImage(storedImageUrl)) {
+    return NextResponse.redirect(storedImageUrl, {
       status: 307,
       headers: {
         "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
@@ -39,6 +40,18 @@ export async function GET(
       "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
     },
   });
+}
+
+function isTrustedStoredImage(imageUrl?: string | null): imageUrl is string {
+  if (!imageUrl) {
+    return false;
+  }
+
+  return (
+    imageUrl.startsWith("/topic-images/") ||
+    imageUrl.includes("amazonaws.com/") ||
+    imageUrl.includes("cloudfront.net/")
+  );
 }
 
 function renderPlaceholderSvg(id: string) {

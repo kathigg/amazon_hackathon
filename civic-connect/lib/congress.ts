@@ -10,7 +10,6 @@ export interface CongressBill {
   number: string;
   type: string;
   title: string;
-  introducedDate: string;
   latestAction: { text: string; actionDate: string; actionTime?: string };
   sponsors?: Array<{ fullName: string }>;
   url: string;
@@ -34,6 +33,7 @@ export interface BillDetail {
   subjects: string[];
   introducedDate: string | null;
   latestActionDate: string | null;
+  latestActionTime: string | null;
 }
 
 export async function fetchBillDetail(
@@ -59,6 +59,7 @@ export async function fetchBillDetail(
     subjects,
     introducedDate: data.bill?.introducedDate ?? null,
     latestActionDate: data.bill?.latestAction?.actionDate ?? null,
+    latestActionTime: data.bill?.latestAction?.actionTime ?? null,
   };
 }
 

@@ -7,7 +7,7 @@ import {
   filterPredicateForTopic,
   getActiveTaxonomy,
 } from "@/lib/taxonomy";
-import { formatBillShortDate } from "@/lib/bill-dates";
+import { formatBillShortDate, formatRelativeBillTime } from "@/lib/bill-dates";
 import { formatTopicTag } from "@/lib/topics";
 import { withTimeout } from "@/lib/with-timeout";
 
@@ -197,6 +197,7 @@ export default async function BillsPage({
                       topicTags={bill.topicTags}
                       imageUrl={bill.imageUrl}
                       introducedAt={bill.introducedAt}
+                      latestActionAt={bill.latestActionAt}
                       viewCount={bill.viewCount}
                       isPersonalized={false}
                     />
@@ -334,8 +335,11 @@ export default async function BillsPage({
                         {bill.title}
                       </h2>
                       <p className="mt-2 text-xs uppercase tracking-[0.2em] text-navy/45">
-                        {formatBillShortDate(bill.introducedAt)} ·{" "}
-                        {bill.viewCount.toLocaleString()} readers
+                        {formatBillShortDate(bill.introducedAt)}
+                        {formatRelativeBillTime(bill.latestActionAt)
+                          ? ` · Updated ${formatRelativeBillTime(bill.latestActionAt)}`
+                          : ""}{" "}
+                        · {bill.viewCount.toLocaleString()} readers
                       </p>
                     </Link>
                   ))}

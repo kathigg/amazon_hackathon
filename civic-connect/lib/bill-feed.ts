@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getBillImageRecord } from "@/lib/bill-image-categories";
 
 export const billCardSelect = {
   id: true,
@@ -7,6 +8,7 @@ export const billCardSelect = {
   sponsor: true,
   status: true,
   introducedAt: true,
+  latestActionAt: true,
   topicTags: true,
   imageUrl: true,
   viewCount: true,
@@ -37,13 +39,14 @@ export async function getBillsBySort({
   skip?: number;
 }): Promise<BillWithSummary[]> {
   if (sort === "latest") {
-    return prisma.bill.findMany({
+    const bills = await prisma.bill.findMany({
       where,
       take,
       skip,
       orderBy: [{ introducedAt: "desc" }, { viewCount: "desc" }],
       select: billCardSelect,
     });
+    return withResolvedBillImages(bills);
   }
 
   const candidateSelect = {
@@ -90,9 +93,16 @@ export async function getBillsBySort({
     select: billCardSelect,
   });
 
-  return selectedIds
+  return withResolvedBillImages(selectedIds
     .map((id) => selectedBills.find((bill) => bill.id === id))
-    .filter((bill): bill is BillWithSummary => Boolean(bill));
+    .filter((bill): bill is BillWithSummary => Boolean(bill)));
+}
+
+function withResolvedBillImages(bills: BillWithSummary[]): BillWithSummary[] {
+  return bills.map((bill) => ({
+    ...bill,
+    imageUrl: getBillImageRecord(bill.id, bill.topicTags).imageUrl,
+  }));
 }
 
 export function rankBillsByHotScore<T extends { introducedAt: Date; viewCount: number }>(
