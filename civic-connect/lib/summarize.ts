@@ -16,7 +16,7 @@ export interface BillSummary {
   whyItMatters: string;
 }
 
-const SUMMARY_SCHEMA = {
+export const SUMMARY_SCHEMA = {
   type: "object",
   properties: {
     plainLanguage: {
@@ -59,7 +59,7 @@ const SUMMARY_SCHEMA = {
  * California Legislative Counsel pattern recommended in Appendix C.3:
  * existing law -> what changes -> downstream effects.
  */
-function buildPrompt(title: string, billText: string): string {
+export function buildPrompt(title: string, billText: string): string {
   return `You are a nonpartisan legislative analyst writing for CivicConnect, a civic engagement platform. Your audience is everyday Americans — not lawyers or policy experts.
 
 Summarize this U.S. Congressional bill following the format used by the Congressional Research Service: action-driven language, named agencies, and explicit reference to existing law where the bill amends it.
@@ -127,7 +127,7 @@ export async function summarizeBill(
           maxTokens: 2400,
           temperature: 0.2,
         }),
-      12_000,
+      60_000,
       null
     );
 
