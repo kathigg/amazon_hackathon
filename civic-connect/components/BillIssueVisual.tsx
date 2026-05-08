@@ -54,12 +54,6 @@ export default function BillIssueVisual({
       >
         {label}
       </div>
-
-      <div className="absolute right-4 top-4 text-right">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-navy/45">
-          {billId.toUpperCase()}
-        </p>
-      </div>
     </div>
   );
 }
