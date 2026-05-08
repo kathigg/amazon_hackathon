@@ -57,17 +57,17 @@ High-risk code paths:
 
 Important files:
 
-- [bill-image-categories.ts](/Users/kathleenhiggins/amazon_hackathon/civic-connect/lib/bill-image-categories.ts)
-- [topic-image-pool.ts](/Users/kathleenhiggins/amazon_hackathon/civic-connect/lib/topic-image-pool.ts)
-- [backfill-bill-images.ts](/Users/kathleenhiggins/amazon_hackathon/civic-connect/scripts/backfill-bill-images.ts)
+- [bill-image-categories.ts](./lib/bill-image-categories.ts)
+- [topic-image-pool.ts](./lib/topic-image-pool.ts)
+- [backfill-bill-images.ts](./scripts/backfill-bill-images.ts)
 
 ## Files to inspect before major changes
 
-1. [README.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/README.md)
-2. [PROJECT_HANDOFF.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/PROJECT_HANDOFF.md)
-3. [schema.prisma](/Users/kathleenhiggins/amazon_hackathon/civic-connect/prisma/schema.prisma)
-4. [AWS_RUNTIME_SETUP.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/AWS_RUNTIME_SETUP.md)
-5. [AWS_CLOUDFRONT_GEOLOCATION.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/AWS_CLOUDFRONT_GEOLOCATION.md)
+1. [README.md](./README.md)
+2. [PROJECT_HANDOFF.md](./PROJECT_HANDOFF.md)
+3. [schema.prisma](./prisma/schema.prisma)
+4. [AWS_RUNTIME_SETUP.md](./AWS_RUNTIME_SETUP.md)
+5. [AWS_CLOUDFRONT_GEOLOCATION.md](./AWS_CLOUDFRONT_GEOLOCATION.md)
 
 ## Expected validation baseline
 

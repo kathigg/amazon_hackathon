@@ -19,7 +19,7 @@
 
 ## How to run
 ```bash
-cd /Users/kathleenhiggins/amazon_hackathon/civic-connect
+cd ../civic-connect
 npx tsx scripts/build-topic-photo-pool.ts
 ```
 

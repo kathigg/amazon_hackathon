@@ -1,4 +1,7 @@
-# AWS Bedrock Setup for Claude 4.5 Haiku
+# AWS Bedrock Setup
+
+> **Current default model**: `amazon.nova-micro-v1:0` (see `lib/summarize.ts` and `lib/aws-bedrock.ts`).
+> Earlier revisions of this guide pinned Claude Haiku 4.5 (`us.anthropic.claude-haiku-4-5-20251001-v1:0`); summaries have since been switched to Nova Micro. Either model can be selected via `AWS_BEDROCK_MODEL` as long as it is enabled in the account.
 
 ## Quick Setup Steps
 
@@ -25,12 +28,13 @@ Important:
 - If you use the base ID, Bedrock returns a validation error telling you to use an inference profile
 - Keep `AWS_BEDROCK_MODEL=us.anthropic.claude-haiku-4-5-20251001-v1:0` for this project
 
-### 3. Update Vercel Environment Variables
+### 3. Update production environment variables
 
-Go to your Vercel project settings and update:
+Production runs on AWS ECS, with secrets in AWS Secrets Manager exposed to the ECS task definition for `civic-connect-web`. Set:
 ```
-AWS_BEDROCK_MODEL=us.anthropic.claude-haiku-4-5-20251001-v1:0
+AWS_BEDROCK_MODEL=amazon.nova-micro-v1:0
 ```
+(or `us.anthropic.claude-haiku-4-5-20251001-v1:0` if reverting to Claude Haiku 4.5).
 
 ### 4. Test Locally
 
@@ -48,14 +52,9 @@ You should see:
 
 ### 5. Deploy
 
-Once the test works locally, deploy to Vercel:
-```bash
-git add .
-git commit -m "Configure Claude 4.5 Haiku for representative stance analysis"
-git push
-```
+Production deploys go through ECR + ECS, not Vercel. After committing changes, build and push the container image, then update the ECS service `civic-connect-web` to the new revision (see `PROJECT_HANDOFF.md` and `AWS_RUNTIME_SETUP.md` for the exact commands).
 
-The cron job will automatically run daily at 9am.
+Scheduled rep-stance scraping is triggered by EventBridge Scheduler against the `civic-scrape-coordinator` Lambda. The `vercel.json` cron entries are kept only as reference cadences.
 
 ## Troubleshooting
 

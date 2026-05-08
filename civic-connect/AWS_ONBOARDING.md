@@ -12,7 +12,7 @@ Use this document if you need to:
 
 This guide assumes the repository is already checked out locally at:
 
-`/Users/kathleenhiggins/amazon_hackathon/civic-connect`
+`../civic-connect`
 
 ## Security rule
 
@@ -161,7 +161,7 @@ aws scheduler list-schedules --max-results 20
 ### 1. Install dependencies
 
 ```bash
-cd /Users/kathleenhiggins/amazon_hackathon/civic-connect
+cd ../civic-connect
 npm install
 ```
 
@@ -169,7 +169,7 @@ npm install
 
 Start from:
 
-- [.env.local.example](/Users/kathleenhiggins/amazon_hackathon/civic-connect/.env.local.example)
+- [.env.local.example](./.env.local.example)
 
 ### 3. Verify app build
 
@@ -350,8 +350,8 @@ By the end of onboarding, a collaborator should be able to:
 
 After this document, the most useful next reads are:
 
-1. [PROJECT_HANDOFF.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/PROJECT_HANDOFF.md)
-2. [AWS_RUNTIME_SETUP.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/AWS_RUNTIME_SETUP.md)
-3. [AWS_CLOUDFRONT_GEOLOCATION.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/AWS_CLOUDFRONT_GEOLOCATION.md)
-4. [LLM_CONTEXT.md](/Users/kathleenhiggins/amazon_hackathon/civic-connect/LLM_CONTEXT.md)
+1. [PROJECT_HANDOFF.md](./PROJECT_HANDOFF.md)
+2. [AWS_RUNTIME_SETUP.md](./AWS_RUNTIME_SETUP.md)
+3. [AWS_CLOUDFRONT_GEOLOCATION.md](./AWS_CLOUDFRONT_GEOLOCATION.md)
+4. [LLM_CONTEXT.md](./LLM_CONTEXT.md)
 
