@@ -17,7 +17,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
-RUN NODE_OPTIONS=--max-old-space-size=1536 NEXT_PRIVATE_BUILD_WORKER=1 DOCKER_BUILD=true npm run build
+RUN DATABASE_URL=postgresql://civic:connect@localhost:5432/civic \
+  NODE_OPTIONS=--max-old-space-size=1536 \
+  NEXT_PRIVATE_BUILD_WORKER=1 \
+  DOCKER_BUILD=true \
+  npm run build
 
 # Run
 FROM base AS runner
