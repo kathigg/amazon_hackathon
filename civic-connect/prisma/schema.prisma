@@ -36,6 +36,8 @@ model Bill {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  searchVector Unsupported("tsvector")? @map("search_vector")
+
   summary  Summary?
   stances  Stance[]
   feedback Feedback[]

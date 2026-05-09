@@ -2,7 +2,8 @@ import Link from "next/link";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import BillFeedCard from "@/components/BillFeedCard";
-import { BillFeedSort, billCardSelect, getBillsBySort } from "@/lib/bill-feed";
+import { BillFeedSort, getBillsBySort } from "@/lib/bill-feed";
+import { searchBills, countSearchBills } from "@/lib/bill-search";
 import {
   filterPredicateForTopic,
   getActiveTaxonomy,
@@ -37,15 +38,6 @@ async function getBills({
   page?: number;
   sort: BillFeedSort;
 }) {
-  const where = {
-    ...(q && {
-      title: { contains: q, mode: "insensitive" as const },
-    }),
-    ...(topic && {
-      topicTags: { hasSome: filterPredicateForTopic(topic) },
-    }),
-  };
-
   const { bills, total, pages } = await withTimeout(
     () =>
       getCachedFeedPage(q?.trim() || "", topic?.trim() || "", page, sort).catch(
@@ -64,24 +56,23 @@ async function getBills({
 
 const getCachedFeedPage = unstable_cache(
   async (q: string, topic: string, page: number, sort: BillFeedSort) => {
-    const where = {
-      ...(q && {
-        title: { contains: q, mode: "insensitive" as const },
-      }),
-      ...(topic && {
-        topicTags: { hasSome: filterPredicateForTopic(topic) },
-      }),
-    };
     const skip = (page - 1) * PAGE_SIZE;
-    const [total, bills] = await Promise.all([
-      prisma.bill.count({ where }),
-      getBillsBySort({
-        where,
-        sort,
-        take: PAGE_SIZE,
-        skip,
-      }),
-    ]);
+    const topicTrimmed = topic || undefined;
+
+    const [bills, total] = q
+      ? await Promise.all([
+          searchBills({ q, topic: topicTrimmed, take: PAGE_SIZE, skip }),
+          countSearchBills({ q, topic: topicTrimmed }),
+        ])
+      : await (() => {
+          const where = topicTrimmed
+            ? { topicTags: { hasSome: filterPredicateForTopic(topicTrimmed) } }
+            : {};
+          return Promise.all([
+            getBillsBySort({ where, sort, take: PAGE_SIZE, skip }),
+            prisma.bill.count({ where }),
+          ]);
+        })();
 
     return {
       bills,

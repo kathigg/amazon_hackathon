@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Loader2 } from "lucide-react";
+import { parseBillId } from "@/lib/bill-id";
 
 export default function BillLookup() {
   const router = useRouter();
@@ -9,32 +10,21 @@ export default function BillLookup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Normalize input to bill ID format
-  // Accepts: "HR 1", "H.R. 1", "hr-1-119", "S. 42", etc.
-  function normalize(input: string): string | null {
-    const clean = input.trim().toUpperCase().replace(/\.\s*/g, "").replace(/\s+/g, "-");
-    // Already in id format: hr-1-119
-    if (/^[A-Z]+-\d+-\d+$/.test(clean)) return clean.toLowerCase();
-    // Type + number only (no congress): HR-1 → hr-1-119
-    if (/^[A-Z]+-\d+$/.test(clean)) return `${clean.toLowerCase()}-119`;
-    return null;
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
-    const billId = normalize(query);
-    if (!billId) {
-      // Fall back to keyword search on /bills
-      router.push(`/bills?q=${encodeURIComponent(query)}`);
-      return;
-    }
+    const trimmed = query.trim();
+    if (!trimmed) return;
 
+    const ids = parseBillId(trimmed);
     setLoading(true);
     try {
-      // Hit the bill page — getBillOrFetch will create it if needed
-      router.push(`/bill/${billId}`);
+      if (ids.length === 1) {
+        router.push(`/bill/${ids[0]}`);
+      } else {
+        router.push(`/bills?q=${encodeURIComponent(trimmed)}`);
+      }
     } finally {
       setLoading(false);
     }
