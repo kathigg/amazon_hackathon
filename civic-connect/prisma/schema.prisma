@@ -19,6 +19,7 @@ model Bill {
   latestActionAt DateTime?
   topicTags    String[]
   topicTagsSource String?  // "api" | "llm" | "keyword" | "none" | null (legacy)
+  legislativeSubjects String[] @default([])  // raw Congress.gov legislativeSubjects, used for subject-level image pools
   fullTextUrl  String?
   imageUrl     String?
   imageThumbnailUrl String?
@@ -31,8 +32,14 @@ model Bill {
   imageSource  String?
   imageSearchQuery String?
   imageFetchedAt DateTime?
+  imageAssetId String?
+  imageAsset   BillImageAsset? @relation("BillImage", fields: [imageAssetId], references: [id])
   viewCount    Int      @default(0)
   breakingAt   DateTime?
+  progressStage    String?
+  stageReachedAt   DateTime?
+  latestActionText String?
+  lastSyncedAt     DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -46,7 +53,39 @@ model Bill {
   @@index([status])
   @@index([introducedAt])
   @@index([latestActionAt])
+  @@index([progressStage])
+  @@index([stageReachedAt])
   @@index([viewCount, introducedAt])
+  @@index([imageAssetId])
+}
+
+model BillImageAsset {
+  id              String    @id @default(cuid())
+  categoryKey     String                       // "loc-area/Health" | "loc-subject/Medicare"
+  storageKey      String    @unique            // S3 key, e.g. "v1/loc-area/Health/<sha256>.jpg"
+  cdnUrl          String                       // pre-built absolute CloudFront/S3 URL
+  contentSha256   String    @unique            // dedup across categories
+  widthPx         Int
+  heightPx        Int
+  mimeType        String
+  bytes           Int
+  sourceProvider  String                       // "openverse"
+  sourceForeignId String?                      // Openverse id
+  sourceUrl       String?                      // foreign_landing_url
+  originalUrl     String?                      // original CDN URL we downloaded from
+  title           String?
+  creator         String?
+  creatorUrl      String?
+  license         String                       // "cc0" | "pdm"
+  licenseVersion  String?
+  searchQuery     String                       // the query that found it
+  retiredAt       DateTime?                    // soft-delete; null = live
+  createdAt       DateTime  @default(now())
+
+  bills           Bill[]    @relation("BillImage")
+
+  @@index([categoryKey, retiredAt])
+  @@index([retiredAt])
 }
 
 model Summary {

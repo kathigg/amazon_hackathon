@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import BillFeedCard from "@/components/BillFeedCard";
 import BillIssueVisual from "@/components/BillIssueVisual";
+import MilestonePill from "@/components/MilestonePill";
 import { getSummaryPreview } from "@/lib/bill-summary";
 import {
   formatBillDate,
@@ -11,14 +12,19 @@ import {
   formatRelativeBillTime,
 } from "@/lib/bill-dates";
 import { formatTopicTag } from "@/lib/topics";
+import type { ProgressStage } from "@/lib/bill-progress";
 
 type FeedBill = {
   id: string;
+  type: string;
   title: string;
   sponsor: string;
   status: string;
   introducedAt: string;
   latestActionAt: string | null;
+  progressStage: ProgressStage | null;
+  stageReachedAt: string | null;
+  latestActionText: string | null;
   topicTags: string[];
   imageUrl: string | null;
   viewCount: number;
@@ -82,7 +88,10 @@ export default function HomeFeedClient() {
   const latestFeed = latestBills.slice(0, 6);
   const recentRail = recentBills.slice(0, 3);
   const leadSummary = getSummaryPreview(leadBill?.summary?.plainLanguage);
-  const leadActionTime = formatRelativeBillTime(leadBill?.latestActionAt);
+  const leadStageDate = leadBill?.stageReachedAt ?? leadBill?.latestActionAt;
+  const leadStageRelative = formatRelativeBillTime(leadStageDate ?? null);
+  const leadStageAbsolute = leadStageDate ? formatBillShortDate(leadStageDate) : null;
+  const leadStageText = leadBill?.latestActionText || leadBill?.status;
 
   if (!leadBill) {
     return (
@@ -118,11 +127,35 @@ export default function HomeFeedClient() {
                   {leadSummary ??
                     "Read the latest plain-language analysis, party positions, and action steps for this federal bill."}
                 </p>
-                <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-navy/45">
+                <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-navy/45">
                   <span>{leadBill.id.toUpperCase()}</span>
-                  <span>{formatBillDate(leadBill.introducedAt)}</span>
-                  <span>{leadActionTime ? `Updated ${leadActionTime}` : "Most recent filing"}</span>
+                  <span>Introduced: {formatBillDate(leadBill.introducedAt)}</span>
+                  {leadBill.latestActionAt && (
+                    <span>Latest action: {formatBillDate(leadBill.latestActionAt)}</span>
+                  )}
+                  {leadBill.progressStage && (
+                    <MilestonePill
+                      stage={leadBill.progressStage}
+                      billType={leadBill.type}
+                    />
+                  )}
                 </div>
+                {(leadStageText || leadStageAbsolute) && (
+                  <div className="mt-4 max-w-3xl border border-black/10 bg-white px-4 py-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-navy/45">
+                      Latest update
+                      {leadStageAbsolute && (
+                        <span className="ml-2 text-navy/70">{leadStageAbsolute}</span>
+                      )}
+                      {leadStageRelative && (
+                        <span className="ml-2 text-navy/45">({leadStageRelative})</span>
+                      )}
+                    </div>
+                    {leadStageText && (
+                      <p className="mt-1 text-sm leading-snug text-navy/80">{leadStageText}</p>
+                    )}
+                  </div>
+                )}
                 <div className="mt-8 overflow-hidden border border-black/10 bg-white">
                   <BillIssueVisual
                     billId={leadBill.id}
@@ -160,11 +193,14 @@ export default function HomeFeedClient() {
                       {bill.title}
                     </h2>
                     <p className="mt-2 text-xs uppercase tracking-[0.2em] text-navy/45">
-                      {formatBillShortDate(bill.introducedAt)}
-                      {formatRelativeBillTime(bill.latestActionAt)
-                        ? ` · Updated ${formatRelativeBillTime(bill.latestActionAt)}`
-                        : " · recently introduced"}
+                      Latest action:{" "}
+                      {formatBillShortDate(bill.latestActionAt ?? bill.introducedAt)}
                     </p>
+                    {bill.progressStage && (
+                      <div className="mt-2">
+                        <MilestonePill stage={bill.progressStage} billType={bill.type} />
+                      </div>
+                    )}
                   </Link>
                 ))}
               </div>
@@ -196,6 +232,7 @@ export default function HomeFeedClient() {
             <BillFeedCard
               key={bill.id}
               id={bill.id}
+              billType={bill.type}
               title={bill.title}
               plainLanguage={bill.summary?.plainLanguage}
               status={bill.status}
@@ -204,6 +241,9 @@ export default function HomeFeedClient() {
               imageUrl={bill.imageUrl}
               introducedAt={bill.introducedAt}
               latestActionAt={bill.latestActionAt}
+              progressStage={bill.progressStage}
+              stageReachedAt={bill.stageReachedAt}
+              latestActionText={bill.latestActionText}
               viewCount={bill.viewCount}
             />
           ))}

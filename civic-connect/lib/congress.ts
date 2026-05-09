@@ -27,6 +27,11 @@ export async function fetchRecentBills(
   return data.bills ?? [];
 }
 
+export interface BillLaw {
+  number: string;
+  type: string;
+}
+
 export interface BillDetail {
   sponsor: string;
   policyArea: string | null;
@@ -34,6 +39,9 @@ export interface BillDetail {
   introducedDate: string | null;
   latestActionDate: string | null;
   latestActionTime: string | null;
+  laws: BillLaw[];
+  updateDate: string | null;
+  originChamber: "House" | "Senate" | null;
 }
 
 export async function fetchBillDetail(
@@ -53,6 +61,13 @@ export async function fetchBillDetail(
   const subjects = rawSubjects
     .map((entry) => entry.name)
     .filter((name): name is string => Boolean(name));
+  const rawLaws: Array<{ number?: string; type?: string }> = data.bill?.laws ?? [];
+  const laws: BillLaw[] = rawLaws
+    .filter((l) => l.number && l.type)
+    .map((l) => ({ number: String(l.number), type: String(l.type) }));
+  const rawOrigin = data.bill?.originChamber;
+  const originChamber: "House" | "Senate" | null =
+    rawOrigin === "House" || rawOrigin === "Senate" ? rawOrigin : null;
   return {
     sponsor: sponsor || "Unknown",
     policyArea,
@@ -60,6 +75,9 @@ export async function fetchBillDetail(
     introducedDate: data.bill?.introducedDate ?? null,
     latestActionDate: data.bill?.latestAction?.actionDate ?? null,
     latestActionTime: data.bill?.latestAction?.actionTime ?? null,
+    laws,
+    updateDate: data.bill?.updateDate ?? null,
+    originChamber,
   };
 }
 
@@ -115,4 +133,69 @@ export async function fetchBillText(
   // Return the URL of the latest text version for downstream fetching
   const versions = data.textVersions ?? [];
   return versions[0]?.formats?.find((f: { type: string; url: string }) => f.type === "Formatted Text")?.url ?? null;
+}
+
+export interface BillSummary {
+  versionCode: string;
+  actionDate: string;
+  actionDesc: string;
+}
+
+export async function fetchBillSummaries(
+  congress: number,
+  type: string,
+  number: string
+): Promise<BillSummary[]> {
+  const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}/summaries?api_key=${getKey()}&format=json`;
+  const res = await fetch(url, { next: { revalidate: 3600 } });
+  if (!res.ok) return [];
+  const data = await res.json();
+  const summaries: Array<{
+    versionCode?: string;
+    actionDate?: string;
+    actionDesc?: string;
+  }> = data.summaries ?? [];
+  return summaries
+    .filter((s) => s.versionCode && s.actionDate)
+    .map((s) => ({
+      versionCode: String(s.versionCode),
+      actionDate: String(s.actionDate),
+      actionDesc: s.actionDesc ?? "",
+    }));
+}
+
+export interface BillAction {
+  actionDate: string;
+  type: string | null;
+  actionCode: string | null;
+  text: string;
+  recordedVotes?: Array<{ chamber: string; rollNumber: number; sessionNumber: number }>;
+}
+
+export async function fetchBillActions(
+  congress: number,
+  type: string,
+  number: string,
+  limit = 250
+): Promise<BillAction[]> {
+  const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}/actions?api_key=${getKey()}&format=json&limit=${limit}`;
+  const res = await fetch(url, { next: { revalidate: 3600 } });
+  if (!res.ok) return [];
+  const data = await res.json();
+  const actions: Array<{
+    actionDate?: string;
+    type?: string;
+    actionCode?: string;
+    text?: string;
+    recordedVotes?: Array<{ chamber: string; rollNumber: number; sessionNumber: number }>;
+  }> = data.actions ?? [];
+  return actions
+    .filter((a) => a.actionDate)
+    .map((a) => ({
+      actionDate: String(a.actionDate),
+      type: a.type ?? null,
+      actionCode: a.actionCode ?? null,
+      text: a.text ?? "",
+      recordedVotes: a.recordedVotes,
+    }));
 }

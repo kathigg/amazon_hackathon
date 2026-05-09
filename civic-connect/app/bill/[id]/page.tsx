@@ -26,10 +26,13 @@ import {
   formatBillDate,
   formatBillDateTime,
   formatRelativeBillTime,
+  formatBillShortDate,
 } from "@/lib/bill-dates";
 import { withTimeout } from "@/lib/with-timeout";
 import { fetchBillText } from "@/lib/congress";
 import { preprocessBillText } from "@/lib/bill-text";
+import MilestonePill from "@/components/MilestonePill";
+import type { ProgressStage } from "@/lib/bill-progress";
 
 export const dynamic = "force-dynamic";
 
@@ -135,7 +138,10 @@ export default async function BillDetailPage({
     { orgs: [], events: [] }
   );
   const chamberFocus = getBillChamberFocus(bill.status, bill.type);
-  const latestActionRelative = formatRelativeBillTime(bill.latestActionAt);
+  const stageDate = bill.stageReachedAt ?? bill.latestActionAt;
+  const stageRelative = formatRelativeBillTime(stageDate);
+  const stageAbsolute = stageDate ? formatBillShortDate(stageDate) : null;
+  const stageText = bill.latestActionText || bill.status;
   const plainLanguage = getSummaryPreview(bill.summary?.plainLanguage);
   const whyItMatters = getSummaryPreview(bill.summary?.whyItMatters);
   const hasUsableSummary =
@@ -219,31 +225,48 @@ export default async function BillDetailPage({
                   })}
                 </div>
 
-                <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
-                  {bill.type} {bill.number} · {bill.congress}th Congress
-                </span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
+                    {bill.type} {bill.number} · {bill.congress}th Congress
+                  </span>
+                  {bill.progressStage && (
+                    <MilestonePill
+                      stage={bill.progressStage as ProgressStage}
+                      billType={bill.type}
+                    />
+                  )}
+                </div>
 
                 <h1 className="mt-2 mb-6 font-display text-2xl font-bold leading-tight text-navy md:text-3xl">
                   {bill.title}
                 </h1>
 
-                <div className="flex items-center gap-2 rounded-xl bg-gray-50 p-3">
+                <div className="flex items-start gap-2 rounded-xl bg-gray-50 p-3">
                   <StatusIcon status={bill.status} />
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-                      Current Status
+                      Latest update
+                      {stageAbsolute && (
+                        <span className="ml-2 text-gray-700 normal-case tracking-normal">
+                          {stageAbsolute}
+                        </span>
+                      )}
+                      {stageRelative && (
+                        <span className="ml-2 text-gray-400 normal-case tracking-normal">
+                          ({stageRelative})
+                        </span>
+                      )}
                     </p>
-                    <p className="text-sm font-medium text-navy">
-                      {bill.status}
+                    <p
+                      className="mt-1 text-sm font-medium text-navy"
+                      title={
+                        bill.latestActionAt
+                          ? formatBillDateTime(bill.latestActionAt)
+                          : undefined
+                      }
+                    >
+                      {stageText}
                     </p>
-                    {bill.latestActionAt && (
-                      <p
-                        className="mt-1 text-xs text-gray-500"
-                        title={formatBillDateTime(bill.latestActionAt)}
-                      >
-                        Updated {latestActionRelative ?? formatBillDate(bill.latestActionAt)}
-                      </p>
-                    )}
                   </div>
                 </div>
               </div>
@@ -261,7 +284,7 @@ export default async function BillDetailPage({
               />
             </div>
 
-            <div className="mt-8 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+            <div className="mt-8 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
               <div>
                 <p className="mb-1 text-xs uppercase tracking-wide text-gray-400">
                   Sponsor
@@ -274,6 +297,16 @@ export default async function BillDetailPage({
                 </p>
                 <p className="font-medium text-navy">
                   {formatBillDate(bill.introducedAt)}
+                </p>
+              </div>
+              <div>
+                <p className="mb-1 text-xs uppercase tracking-wide text-gray-400">
+                  Latest action
+                </p>
+                <p className="font-medium text-navy">
+                  {bill.latestActionAt
+                    ? formatBillDate(bill.latestActionAt)
+                    : formatBillDate(bill.introducedAt)}
                 </p>
               </div>
             </div>

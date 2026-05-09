@@ -13,14 +13,22 @@ const getCachedHomeFeed = unstable_cache(
     const [latestBills, recentBills] = await Promise.all([
       prisma.bill.findMany({
         take: 8,
-        orderBy: [{ introducedAt: "desc" }, { updatedAt: "desc" }, { id: "desc" }],
+        orderBy: [
+          { latestActionAt: { sort: "desc", nulls: "last" } },
+          { introducedAt: "desc" },
+          { id: "desc" },
+        ],
         select: {
           id: true,
+          type: true,
           title: true,
           sponsor: true,
           status: true,
           introducedAt: true,
           latestActionAt: true,
+          progressStage: true,
+          stageReachedAt: true,
+          latestActionText: true,
           topicTags: true,
           imageUrl: true,
           viewCount: true,
@@ -30,14 +38,22 @@ const getCachedHomeFeed = unstable_cache(
       prisma.bill.findMany({
         take: 6,
         skip: 1,
-        orderBy: [{ introducedAt: "desc" }, { updatedAt: "desc" }, { id: "desc" }],
+        orderBy: [
+          { latestActionAt: { sort: "desc", nulls: "last" } },
+          { introducedAt: "desc" },
+          { id: "desc" },
+        ],
         select: {
           id: true,
+          type: true,
           title: true,
           sponsor: true,
           status: true,
           introducedAt: true,
           latestActionAt: true,
+          progressStage: true,
+          stageReachedAt: true,
+          latestActionText: true,
           topicTags: true,
           imageUrl: true,
           viewCount: true,

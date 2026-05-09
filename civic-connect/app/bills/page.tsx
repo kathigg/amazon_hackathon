@@ -8,8 +8,10 @@ import {
   filterPredicateForTopic,
   getActiveTaxonomy,
 } from "@/lib/taxonomy";
-import { formatBillShortDate, formatRelativeBillTime } from "@/lib/bill-dates";
+import { formatBillShortDate } from "@/lib/bill-dates";
 import { formatTopicTag } from "@/lib/topics";
+import MilestonePill from "@/components/MilestonePill";
+import { toProgressStage } from "@/lib/bill-progress";
 import { withTimeout } from "@/lib/with-timeout";
 
 const ACTIVE_TAXONOMY = getActiveTaxonomy();
@@ -181,6 +183,7 @@ export default async function BillsPage({
                     <BillFeedCard
                       key={bill.id}
                       id={bill.id}
+                      billType={bill.type}
                       title={bill.title}
                       plainLanguage={bill.summary?.plainLanguage}
                       status={bill.status}
@@ -189,6 +192,9 @@ export default async function BillsPage({
                       imageUrl={bill.imageUrl}
                       introducedAt={bill.introducedAt}
                       latestActionAt={bill.latestActionAt}
+                      progressStage={toProgressStage(bill.progressStage)}
+                      stageReachedAt={bill.stageReachedAt}
+                      latestActionText={bill.latestActionText}
                       viewCount={bill.viewCount}
                       isPersonalized={false}
                     />
@@ -326,12 +332,19 @@ export default async function BillsPage({
                         {bill.title}
                       </h2>
                       <p className="mt-2 text-xs uppercase tracking-[0.2em] text-navy/45">
-                        {formatBillShortDate(bill.introducedAt)}
-                        {formatRelativeBillTime(bill.latestActionAt)
-                          ? ` · Updated ${formatRelativeBillTime(bill.latestActionAt)}`
-                          : ""}{" "}
-                        · {bill.viewCount.toLocaleString()} readers
+                        Latest action:{" "}
+                        {formatBillShortDate(bill.latestActionAt ?? bill.introducedAt)}
+                        {" · "}
+                        {bill.viewCount.toLocaleString()} readers
                       </p>
+                      {toProgressStage(bill.progressStage) && (
+                        <div className="mt-2">
+                          <MilestonePill
+                            stage={toProgressStage(bill.progressStage)}
+                            billType={bill.type}
+                          />
+                        </div>
+                      )}
                     </Link>
                   ))}
                 </div>

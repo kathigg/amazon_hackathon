@@ -3,6 +3,8 @@
  * Replaces the deprecated ProPublica Congress API
  */
 
+import { fetchBillActions } from "./congress";
+
 const BASE = "https://api.congress.gov/v3";
 function getKey() {
   const key = process.env.CONGRESS_API_KEY;
@@ -20,16 +22,8 @@ export async function fetchBillVotes(
   billType: string,
   billNumber: string
 ): Promise<VoteResult | null> {
-  // Fetch recorded votes associated with this bill's actions
-  const url = `${BASE}/bill/${congress}/${billType.toLowerCase()}/${billNumber}/actions?api_key=${getKey()}&format=json&limit=20`;
-  const res = await fetch(url, { next: { revalidate: 3600 } });
-  if (!res.ok) return null;
+  const actions = await fetchBillActions(congress, billType, billNumber, 20);
 
-  const data = await res.json();
-  const actions: Array<{ recordedVotes?: Array<{ chamber: string; rollNumber: number; sessionNumber: number }> }> =
-    data.actions ?? [];
-
-  // Find the most recent recorded vote
   const voteAction = actions.find((a) => a.recordedVotes && a.recordedVotes.length > 0);
   if (!voteAction?.recordedVotes?.length) return null;
 

@@ -16,6 +16,7 @@
     "regenerate:images": "tsx scripts/regenerate-images.ts",
     "backfill:images": "tsx scripts/backfill-bill-images.ts",
     "backfill:dates": "tsx scripts/backfill-introduced-dates.ts",
+    "backfill:progress": "tsx scripts/backfill-progress.ts",
     "backfill:summaries": "tsx scripts/backfill-summaries.ts",
     "backfill:taxonomy": "tsx scripts/backfill-policy-areas.ts",
     "enrich:tags": "tsx scripts/enrich-bill-tags.ts",

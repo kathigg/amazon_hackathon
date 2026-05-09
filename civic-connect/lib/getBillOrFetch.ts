@@ -4,11 +4,9 @@
  */
 import { unstable_cache } from "next/cache";
 import { prisma } from "./prisma";
-import { fetchCosponsors } from "./congress";
-import { classifyBillTaxonomy } from "./taxonomy/classify";
+import { fetchCosponsors, type CongressBill } from "./congress";
 import { fetchBillVotes } from "./votes";
-import { parseIntroducedDate } from "./bill-ingestion";
-import { parseCongressDateTime } from "./bill-dates";
+import { upsertBillMetadataFromCongress } from "./bill-ingestion";
 
 const BASE = "https://api.congress.gov/v3";
 function getCongressApiKey() {
@@ -54,46 +52,35 @@ export async function getBillOrFetch(billId: string) {
   const bill = data.bill;
   if (!bill) return null;
 
-  const policyArea: string | null = bill.policyArea?.name ?? null;
-  const apiClassification = classifyBillTaxonomy({ policyArea }, bill.title ?? "");
-  const s = bill.sponsors?.[0];
-  const sponsor = s
-    ? (s.fullName ?? (`${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || "Unknown"))
-    : "Unknown";
-  const status = bill.latestAction?.text ?? "Unknown";
+  const sponsorEntry = bill.sponsors?.[0];
+  const sponsorFullName = sponsorEntry
+    ? sponsorEntry.fullName ??
+      (`${sponsorEntry.firstName ?? ""} ${sponsorEntry.lastName ?? ""}`.trim() || undefined)
+    : undefined;
 
-  const created = await prisma.bill.create({
-    data: {
-      id: billId,
-      congress,
-      number,
-      type,
-      title: bill.title ?? billId,
-      sponsor,
-      status,
-      introducedAt: parseIntroducedDate(
-        bill.introducedDate,
-        bill.latestAction?.actionDate
-      ),
-      latestActionAt: parseCongressDateTime(
-        bill.latestAction?.actionDate,
-        bill.latestAction?.actionTime,
-        bill.latestAction?.actionDate
-      ),
-      topicTags: apiClassification.topicTags,
-      topicTagsSource: apiClassification.source,
-      fullTextUrl: null,
-      imageFetchedAt: null,
-      viewCount: 0,
+  const synthetic: CongressBill = {
+    congress,
+    number,
+    type,
+    title: bill.title ?? billId,
+    latestAction: {
+      text: bill.latestAction?.text ?? "Unknown",
+      actionDate: bill.latestAction?.actionDate ?? "",
+      actionTime: bill.latestAction?.actionTime,
     },
-  });
+    sponsors: sponsorFullName ? [{ fullName: sponsorFullName }] : [],
+    url: bill.url ?? "",
+  };
 
-  // Never perform AI work in request paths. Summaries and enrichment run in
-  // background ingest jobs only.
-  void fetchAndStoreStances(created.id, congress, type, number);
+  const result = await upsertBillMetadataFromCongress(synthetic);
+  if (result.skipped) {
+    return null;
+  }
+
+  void fetchAndStoreStances(billId, congress, type, number);
 
   return prisma.bill.findUnique({
-    where: { id: created.id },
+    where: { id: billId },
     include: { summary: true, stances: true },
   });
 }

@@ -4,11 +4,15 @@ import { getBillImageRecord } from "@/lib/bill-image-categories";
 
 export const billCardSelect = {
   id: true,
+  type: true,
   title: true,
   sponsor: true,
   status: true,
   introducedAt: true,
   latestActionAt: true,
+  progressStage: true,
+  stageReachedAt: true,
+  latestActionText: true,
   topicTags: true,
   imageUrl: true,
   viewCount: true,
@@ -43,7 +47,11 @@ export async function getBillsBySort({
       where,
       take,
       skip,
-      orderBy: [{ introducedAt: "desc" }, { viewCount: "desc" }],
+      orderBy: [
+        { latestActionAt: { sort: "desc", nulls: "last" } },
+        { introducedAt: "desc" },
+        { viewCount: "desc" },
+      ],
       select: billCardSelect,
     });
     return withResolvedBillImages(bills);
@@ -65,7 +73,11 @@ export async function getBillsBySort({
     prisma.bill.findMany({
       where,
       take: HOT_CANDIDATE_LIMIT,
-      orderBy: [{ introducedAt: "desc" }, { viewCount: "desc" }],
+      orderBy: [
+        { latestActionAt: { sort: "desc", nulls: "last" } },
+        { introducedAt: "desc" },
+        { viewCount: "desc" },
+      ],
       select: candidateSelect,
     }),
   ]);
@@ -93,12 +105,16 @@ export async function getBillsBySort({
     select: billCardSelect,
   });
 
-  return withResolvedBillImages(selectedIds
-    .map((id) => selectedBills.find((bill) => bill.id === id))
-    .filter((bill): bill is BillWithSummary => Boolean(bill)));
+  return withResolvedBillImages(
+    selectedIds
+      .map((id) => selectedBills.find((bill) => bill.id === id))
+      .filter((bill): bill is BillWithSummary => Boolean(bill))
+  );
 }
 
-function withResolvedBillImages(bills: BillWithSummary[]): BillWithSummary[] {
+function withResolvedBillImages<
+  T extends { id: string; topicTags: string[]; imageUrl: string | null },
+>(bills: T[]): T[] {
   return bills.map((bill) => ({
     ...bill,
     imageUrl: getBillImageRecord(bill.id, bill.topicTags).imageUrl,

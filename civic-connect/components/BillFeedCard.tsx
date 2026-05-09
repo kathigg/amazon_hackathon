@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import BillIssueVisual from "@/components/BillIssueVisual";
+import MilestonePill from "@/components/MilestonePill";
 import { getSummaryPreview } from "@/lib/bill-summary";
 import { formatBillShortDate, formatRelativeBillTime } from "@/lib/bill-dates";
 import { formatTopicTag } from "@/lib/topics";
+import type { ProgressStage } from "@/lib/bill-progress";
 
 interface BillFeedCardProps {
   id: string;
@@ -18,6 +20,10 @@ interface BillFeedCardProps {
   latestActionAt?: Date | string | null;
   viewCount: number;
   isPersonalized?: boolean;
+  progressStage?: ProgressStage | null;
+  stageReachedAt?: Date | string | null;
+  latestActionText?: string | null;
+  billType?: string;
 }
 
 export default function BillFeedCard({
@@ -32,10 +38,17 @@ export default function BillFeedCard({
   latestActionAt,
   viewCount,
   isPersonalized,
+  progressStage,
+  stageReachedAt,
+  latestActionText,
+  billType,
 }: BillFeedCardProps) {
   const primaryTopic = topicTags[0] ? formatTopicTag(topicTags[0]) : "General";
   const summaryPreview = getSummaryPreview(plainLanguage);
-  const actionTime = formatRelativeBillTime(latestActionAt);
+  const stageDate = stageReachedAt ?? latestActionAt;
+  const stageRelative = formatRelativeBillTime(stageDate);
+  const stageAbsolute = stageDate ? formatBillShortDate(stageDate) : null;
+  const stageText = latestActionText || status;
 
   return (
     <Link
@@ -47,10 +60,15 @@ export default function BillFeedCard({
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/45">
             <span>{primaryTopic}</span>
             <span>{id.toUpperCase()}</span>
-            <span>{formatBillShortDate(introducedAt)}</span>
-            {actionTime && <span>Updated {actionTime}</span>}
+            <span>
+              Latest action:{" "}
+              {formatBillShortDate(latestActionAt ?? introducedAt)}
+            </span>
             <span>{viewCount.toLocaleString()} readers</span>
             {isPersonalized && <span className="text-civic-red">For You</span>}
+            {progressStage && (
+              <MilestonePill stage={progressStage} billType={billType} />
+            )}
           </div>
 
           <h3 className="mt-3 font-display text-3xl leading-tight text-navy transition-colors group-hover:text-civic-blue">
@@ -83,10 +101,18 @@ export default function BillFeedCard({
             )}
           </div>
 
-          <div className="mt-4 inline-flex items-center gap-2 border border-black/10 bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-navy/60">
-            <span className="h-2 w-2 rounded-full bg-green-600" />
-            {status}
-          </div>
+          {(stageText || stageAbsolute) && (
+            <div className="mt-4 border border-black/10 bg-white px-3 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-navy/45">
+                Latest update
+                {stageAbsolute && <span className="ml-2 text-navy/70">{stageAbsolute}</span>}
+                {stageRelative && <span className="ml-2 text-navy/45">({stageRelative})</span>}
+              </div>
+              {stageText && (
+                <p className="mt-1 text-sm leading-snug text-navy/80">{stageText}</p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="order-first md:order-none">
