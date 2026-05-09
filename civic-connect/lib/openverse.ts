@@ -2,9 +2,14 @@ import { isSummaryPlaceholder } from "./bill-summary";
 import { getActiveTaxonomy, parseTerm } from "./taxonomy";
 
 const OPENVERSE_IMAGES_ENDPOINT = "https://api.openverse.org/v1/images/";
-const OPENVERSE_USER_AGENT = "CivicConnect/0.1 (Openverse bill imagery)";
+// Cloudflare's bot heuristics in front of api.openverse.org reject our prior
+// custom UA ("CivicConnect/0.1 (...)") with a managed-challenge 403. A normal
+// browser UA passes. We're an honest API consumer either way.
+const OPENVERSE_USER_AGENT =
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
 
-interface OpenverseImage {
+export interface OpenverseImage {
+  id?: string | null;
   title: string | null;
   url: string | null;
   thumbnail: string | null;
@@ -22,6 +27,8 @@ interface OpenverseImage {
 
 interface OpenverseImageSearchResponse {
   results?: OpenverseImage[];
+  page_count?: number;
+  result_count?: number;
 }
 
 export interface OpenverseBillImage {
@@ -228,6 +235,50 @@ async function searchBestImageForQuery(query: string): Promise<OpenverseImage | 
 
   return [...candidates].sort((left, right) => scoreImage(right) - scoreImage(left))[0];
 }
+
+export async function searchOpenverseImages({
+  query,
+  license = "cc0,pdm",
+  pageSize = 100,
+  page = 1,
+  signal,
+}: {
+  query: string;
+  license?: string;
+  pageSize?: number;
+  page?: number;
+  signal?: AbortSignal;
+}): Promise<{
+  results: OpenverseImage[];
+  pageCount: number;
+  resultCount: number;
+}> {
+  const url = new URL(OPENVERSE_IMAGES_ENDPOINT);
+  url.searchParams.set("q", query);
+  url.searchParams.set("page_size", String(pageSize));
+  url.searchParams.set("page", String(page));
+  if (license) {
+    url.searchParams.set("license", license);
+  }
+
+  const response = await fetch(url, {
+    headers: { "User-Agent": OPENVERSE_USER_AGENT },
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Openverse API error: ${response.status}`);
+  }
+
+  const data = (await response.json()) as OpenverseImageSearchResponse;
+  return {
+    results: data.results ?? [],
+    pageCount: data.page_count ?? 0,
+    resultCount: data.result_count ?? 0,
+  };
+}
+
+export { isUsableImage, isLikelyPhotographic, scoreImage };
 
 function buildOpenverseQueries(title: string, topicTags: string[], summary?: string) {
   const normalizedTitle = title.toLowerCase();

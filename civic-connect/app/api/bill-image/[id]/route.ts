@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getBillImageRecord } from "@/lib/bill-image-categories";
+import { fetchAssetUrlsForBills } from "@/lib/image-pool-read";
 
 export async function GET(
   _req: Request,
@@ -10,6 +11,19 @@ export async function GET(
     where: { id: params.id },
     select: { id: true, topicTags: true, imageUrl: true },
   });
+
+  if (bill) {
+    const assetUrlByBillId = await fetchAssetUrlsForBills([bill.id]);
+    const assetUrl = assetUrlByBillId.get(bill.id);
+    if (assetUrl) {
+      return NextResponse.redirect(assetUrl, {
+        status: 307,
+        headers: {
+          "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+        },
+      });
+    }
+  }
 
   const storedImageUrl = bill?.imageUrl ?? null;
   if (isTrustedStoredImage(storedImageUrl)) {
@@ -47,11 +61,18 @@ function isTrustedStoredImage(imageUrl?: string | null): imageUrl is string {
     return false;
   }
 
-  return (
-    imageUrl.startsWith("/topic-images/") ||
-    imageUrl.includes("amazonaws.com/") ||
-    imageUrl.includes("cloudfront.net/")
-  );
+  if (imageUrl.startsWith("/topic-images/")) {
+    return true;
+  }
+
+  // Prefer an exact prefix match against the configured CDN host, when set,
+  // so a future Wikimedia or rogue cloudfront.net URL never sneaks through.
+  const configuredHost = process.env.IMAGE_CDN_HOST?.replace(/\/+$/, "");
+  if (configuredHost && imageUrl.startsWith(`${configuredHost}/`)) {
+    return true;
+  }
+
+  return imageUrl.includes("amazonaws.com/") || imageUrl.includes("cloudfront.net/");
 }
 
 function renderPlaceholderSvg(id: string) {

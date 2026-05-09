@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getBillImageRecord } from "@/lib/bill-image-categories";
+import { fetchAssetUrlsForBills } from "@/lib/image-pool-read";
 
 export const billCardSelect = {
   id: true,
@@ -54,7 +55,7 @@ export async function getBillsBySort({
       ],
       select: billCardSelect,
     });
-    return withResolvedBillImages(bills);
+    return await withResolvedBillImages(bills);
   }
 
   const candidateSelect = {
@@ -105,19 +106,24 @@ export async function getBillsBySort({
     select: billCardSelect,
   });
 
-  return withResolvedBillImages(
+  return await withResolvedBillImages(
     selectedIds
       .map((id) => selectedBills.find((bill) => bill.id === id))
       .filter((bill): bill is BillWithSummary => Boolean(bill))
   );
 }
 
-function withResolvedBillImages<
-  T extends { id: string; topicTags: string[]; imageUrl: string | null },
->(bills: T[]): T[] {
+async function withResolvedBillImages(
+  bills: BillWithSummary[]
+): Promise<BillWithSummary[]> {
+  const assetUrlByBillId = await fetchAssetUrlsForBills(
+    bills.map((bill) => bill.id)
+  );
   return bills.map((bill) => ({
     ...bill,
-    imageUrl: getBillImageRecord(bill.id, bill.topicTags).imageUrl,
+    imageUrl:
+      assetUrlByBillId.get(bill.id) ??
+      getBillImageRecord(bill.id, bill.topicTags).imageUrl,
   }));
 }
 

@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withTimeout } from "@/lib/with-timeout";
 import { getBillImageRecord } from "@/lib/bill-image-categories";
+import { fetchAssetUrlsForBills } from "@/lib/image-pool-read";
 
 const HOME_FEED_TIMEOUT_MS = 2_500;
 
@@ -62,9 +63,15 @@ const getCachedHomeFeed = unstable_cache(
       }),
     ]);
 
+    const allBillIds = [
+      ...latestBills.map((bill) => bill.id),
+      ...recentBills.map((bill) => bill.id),
+    ];
+    const assetUrlByBillId = await fetchAssetUrlsForBills(allBillIds);
+
     return {
-      latestBills: withResolvedBillImages(latestBills),
-      recentBills: withResolvedBillImages(recentBills),
+      latestBills: withResolvedBillImages(latestBills, assetUrlByBillId),
+      recentBills: withResolvedBillImages(recentBills, assetUrlByBillId),
     };
   },
   ["home-feed-api-v2"],
@@ -88,9 +95,11 @@ export async function GET() {
 
 function withResolvedBillImages<
   T extends { id: string; topicTags: string[]; imageUrl: string | null },
->(bills: T[]): T[] {
+>(bills: T[], assetUrlByBillId: Map<string, string>): T[] {
   return bills.map((bill) => ({
     ...bill,
-    imageUrl: getBillImageRecord(bill.id, bill.topicTags).imageUrl,
+    imageUrl:
+      assetUrlByBillId.get(bill.id) ??
+      getBillImageRecord(bill.id, bill.topicTags).imageUrl,
   }));
 }

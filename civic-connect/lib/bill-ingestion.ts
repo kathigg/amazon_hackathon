@@ -10,6 +10,7 @@ import { classifyBillTaxonomy } from "./taxonomy/classify";
 import { isMajorBillAction } from "./breaking-bills";
 import { parseCongressDate, parseCongressDateTime } from "./bill-dates";
 import { classifyBillProgress, type ProgressStage } from "./bill-progress";
+import { assignBillImageAsset } from "./image-pool";
 
 export const BILL_METADATA_INGEST_LIMIT = 100;
 
@@ -131,10 +132,42 @@ export async function upsertBillMetadataFromCongress(
     },
   });
 
+  await persistLegislativeSubjects(billId, detail?.subjects ?? []);
+  await assignBillImageAsset(billId, topicTags, detail?.subjects ?? []);
+
   return {
     billId,
     breakingTriggered: stageChanged || (Boolean(statusChanged) && isMajorBillAction(status)),
   };
+}
+
+/**
+ * Write Bill.legislativeSubjects via a separate update so the call works even
+ * before the schema migration adds the column. After `prisma db push` the
+ * type-assertion becomes a no-op and the column is populated normally.
+ */
+async function persistLegislativeSubjects(
+  billId: string,
+  subjects: string[]
+): Promise<void> {
+  if (subjects.length === 0) return;
+  try {
+    await (
+      prisma.bill.update as unknown as (args: {
+        where: { id: string };
+        data: { legislativeSubjects: string[] };
+      }) => Promise<unknown>
+    )({
+      where: { id: billId },
+      data: { legislativeSubjects: subjects },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/legislativeSubjects/i.test(message)) {
+      throw error;
+    }
+    // Pre-migration: column doesn't exist yet; ignore.
+  }
 }
 
 function resolveIntroducedAt(
