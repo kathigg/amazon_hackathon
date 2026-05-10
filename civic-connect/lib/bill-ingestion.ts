@@ -37,7 +37,7 @@ export async function upsertBillMetadataFromCongress(
     fetchBillActions(bill.congress, bill.type, bill.number),
   ]);
 
-  const classification = classifyBillTaxonomy(detail, bill.title);
+  const classification = await classifyBillTaxonomy(detail, bill.title);
   const sponsor = detail?.sponsor ?? bill.sponsors?.[0]?.fullName ?? "Unknown";
   const status = bill.latestAction?.text ?? "Unknown";
 

@@ -1,7 +1,11 @@
 #!/usr/bin/env tsx
 /**
- * Re-classify every bill in the DB against the active taxonomy (LoC Policy Areas).
- * Pulls the official policyArea from Congress.gov; falls back to keyword inference.
+ * Re-classify every bill in the DB against the active taxonomy (LoC Policy
+ * Areas), strict single-label.
+ *
+ * Path per bill: Congress.gov `policyArea.name` → if missing, Bedrock single-
+ * label LLM fallback → otherwise empty. See lib/taxonomy/classify.ts.
+ *
  * Logs per-bill source so we can audit how many genuinely have no policy area.
  */
 
@@ -19,31 +23,33 @@ async function main() {
   });
   console.log(`Re-classifying ${bills.length} bills against LoC Policy Areas...\n`);
 
-  const counts = { api: 0, keyword: 0, none: 0, error: 0 };
+  const counts = { api: 0, "llm-fallback": 0, none: 0, error: 0 };
 
   for (const bill of bills) {
     try {
       const detail = await fetchBillDetail(bill.congress, bill.type, bill.number);
-      const result = classifyBillTaxonomy(detail, bill.title);
+      const result = await classifyBillTaxonomy(detail, bill.title);
       await prisma.bill.update({
         where: { id: bill.id },
         data: { topicTags: result.topicTags, topicTagsSource: result.source },
       });
       counts[result.source]++;
-      console.log(`  [${result.source.padEnd(7)}] ${bill.id.padEnd(20)} ${result.topicTags.join(", ") || "(empty)"}`);
+      console.log(
+        `  [${result.source.padEnd(13)}] ${bill.id.padEnd(20)} ${result.topicTags.join(", ") || "(empty)"}`
+      );
       // Be nice to the Congress.gov API (1 req/sec advisory limit).
       await new Promise((r) => setTimeout(r, 250));
     } catch (e) {
       counts.error++;
-      console.error(`  [error  ] ${bill.id}: ${e instanceof Error ? e.message : String(e)}`);
+      console.error(`  [error        ] ${bill.id}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
   console.log("\nDone. Summary:");
-  console.log(`  api      ${counts.api}`);
-  console.log(`  keyword  ${counts.keyword}`);
-  console.log(`  none     ${counts.none}`);
-  console.log(`  error    ${counts.error}`);
+  console.log(`  api           ${counts.api}`);
+  console.log(`  llm-fallback  ${counts["llm-fallback"]}`);
+  console.log(`  none          ${counts.none}`);
+  console.log(`  error         ${counts.error}`);
   await prisma.$disconnect();
 }
 

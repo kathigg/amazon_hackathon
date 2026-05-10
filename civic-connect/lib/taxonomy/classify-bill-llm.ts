@@ -1,12 +1,31 @@
 /**
- * LLM-based bill tag enrichment.
+ * Bill → LoC Policy Area classification via Bedrock.
  *
- * Pairs with `classify.ts` (API-first classifier). Where the API gives us a
- * single LoC Policy Area for a bill, this module asks Claude Haiku for up to
- * 2 additional LoC labels that should also apply, with the API tag treated as
- * a non-negotiable anchor (always kept, never overridden).
+ * ACTIVE TODAY: classifyBillFallbackFromTitle()
+ *   - Used at ingest time when Congress.gov returns no `policyArea` for a bill
+ *     (rare, mostly fresh introductions before LoC has tagged them).
+ *   - Asks Bedrock to pick exactly ONE LoC Policy Area from the title alone,
+ *     validated against the controlled vocab. May return null when the title
+ *     is too vague to classify, in which case the bill is stored with empty
+ *     topicTags and topicTagsSource = "none".
+ *   - Caller: lib/taxonomy/classify.ts → lib/bill-ingestion.ts.
  *
- * Output is hard-validated against the active taxonomy via `canonicalizeValue`.
+ * FUTURE WORK: classifyBillFromTitle()
+ *   - Multi-label extension on top of an API anchor (anchor + up to 2
+ *     LLM-suggested additions, max 3 total). Currently UNWIRED — the
+ *     scripts/enrich-bill-tags.ts driver has no npm-script alias.
+ *   - Why disabled: the LoC's editorial rule is "one primary subject per
+ *     bill," and the current UI does not visually distinguish the
+ *     LoC-editorial anchor from model-inferred additions. Until the UI
+ *     marks anchor vs. secondary distinctly, multi-label inflates topic
+ *     feeds with tangentially-related bills and muddles authority for
+ *     everyday viewers. We defer to LoC's single-tag judgment for now.
+ *   - To revive: re-add `"enrich:tags": "tsx scripts/enrich-bill-tags.ts"`
+ *     to package.json scripts, decide on UI treatment (anchor prominence,
+ *     filter-feed inclusion semantics for secondary tags), then run.
+ *
+ * Output of both functions is hard-validated against the active taxonomy
+ * via `canonicalizeValue`.
  */
 
 import { callBedrockStructured } from "../bedrock-structured";
@@ -16,6 +35,108 @@ import {
   encodeTerm,
   getActiveTaxonomy,
 } from "./index";
+
+// ---------------------------------------------------------------------------
+// ACTIVE: single-label LLM fallback (used when Congress.gov has no policyArea)
+// ---------------------------------------------------------------------------
+
+export interface BillFallbackClassificationResult {
+  /** Encoded LoC tag (e.g. "loc-policy-area:Health") or null if no confident match. */
+  topicTag: string | null;
+  source: "llm-fallback" | "unavailable" | "error";
+  reasoning?: string;
+}
+
+interface FallbackToolOutput {
+  label: string | null;
+  reasoning: string;
+}
+
+export async function classifyBillFallbackFromTitle(
+  title: string
+): Promise<BillFallbackClassificationResult> {
+  if (!isBedrockConfigured()) {
+    return { topicTag: null, source: "unavailable" };
+  }
+
+  const def = getActiveTaxonomy();
+  const prompt = buildFallbackPrompt(title);
+
+  try {
+    const parsed = await callBedrockStructured<FallbackToolOutput>({
+      prompt,
+      toolName: "classify_bill_fallback",
+      toolDescription:
+        "Pick the single LoC Policy Area label that best describes this U.S. Congressional bill from its title, or null if the title is too vague",
+      inputSchema: {
+        type: "object",
+        properties: {
+          label: {
+            type: ["string", "null"],
+            description:
+              "ONE LoC Policy Area label from the controlled vocab (exact spelling/casing), or null if no confident match.",
+          },
+          reasoning: {
+            type: "string",
+            description: "One sentence explaining the choice.",
+          },
+        },
+        required: ["label", "reasoning"],
+        additionalProperties: false,
+      },
+      maxTokens: 256,
+      temperature: 0,
+    });
+
+    if (!parsed.label) {
+      return { topicTag: null, source: "llm-fallback", reasoning: parsed.reasoning };
+    }
+    const canonical = canonicalizeValue(def, parsed.label);
+    if (!canonical) {
+      // Model returned something off-vocab even after the constrained prompt.
+      // Treat as no confident match rather than poisoning the column.
+      return { topicTag: null, source: "llm-fallback", reasoning: parsed.reasoning };
+    }
+    return {
+      topicTag: encodeTerm(def.id, canonical),
+      source: "llm-fallback",
+      reasoning: parsed.reasoning,
+    };
+  } catch (e) {
+    console.error("[classifyBillFallbackFromTitle] Bedrock error:", e);
+    return { topicTag: null, source: "error" };
+  }
+}
+
+function buildFallbackPrompt(title: string): string {
+  const def = getActiveTaxonomy();
+  const vocabularyBlock = def.terms
+    .map((term) => {
+      const desc = def.descriptions[term] ?? "";
+      return `- ${term}${desc ? ` — ${desc}` : ""}`;
+    })
+    .join("\n");
+
+  return `You are classifying a U.S. Congressional bill against the Library of Congress Policy Area taxonomy.
+
+The Library of Congress assigns exactly ONE Policy Area per bill, picked as its primary subject. Congress.gov did not return one for this bill (it may be too freshly introduced for LoC to have tagged it yet), so you are filling in for the LoC analyst.
+
+Bill title:
+${title}
+
+Pick the SINGLE Policy Area that best describes this bill's primary subject. If the title is so vague or procedural that no single Policy Area is a confident fit (e.g. a generic short-title placeholder with no substantive subject), return null for "label" — it is better to leave the bill untagged than to guess.
+
+You MUST choose ONLY from this exact list of ${def.terms.length} ${def.displayName} labels. Use the EXACT spelling and casing shown. Do not invent new labels and do not paraphrase:
+
+${vocabularyBlock}`;
+}
+
+// ---------------------------------------------------------------------------
+// FUTURE WORK: multi-label extension on top of an API anchor
+// ---------------------------------------------------------------------------
+// Currently has no production caller. Driver: scripts/enrich-bill-tags.ts
+// (also disabled — npm-script alias removed from package.json). See top-of-
+// file banner for the rationale and revival steps.
 
 export interface BillLLMClassificationInput {
   title: string;

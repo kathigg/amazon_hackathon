@@ -22,7 +22,6 @@
     "backfill:progress": "tsx scripts/backfill-progress.ts",
     "backfill:summaries": "tsx scripts/backfill-summaries.ts",
     "backfill:taxonomy": "tsx scripts/backfill-policy-areas.ts",
-    "enrich:tags": "tsx scripts/enrich-bill-tags.ts",
     "test:db": "tsx scripts/test-db.ts",
     "test:keys": "tsx scripts/test-keys.ts"
   },

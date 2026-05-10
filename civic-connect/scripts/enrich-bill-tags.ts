@@ -1,11 +1,21 @@
 #!/usr/bin/env tsx
 /**
+ * DISABLED — multi-label LLM enrichment is shelved as future work.
+ *
+ * Bills are now strictly single-tag at ingest time (the LoC's "one primary
+ * subject" editorial rule). See lib/taxonomy/classify-bill-llm.ts for the
+ * rationale, current/future split, and revival steps.
+ *
+ * This script is retained as scaffolding so the runner doesn't have to be
+ * rebuilt from scratch when multi-label is reconsidered. The `enrich:tags`
+ * npm-script alias has been removed from package.json; if you really mean to
+ * run this, invoke it explicitly as `npx tsx scripts/enrich-bill-tags.ts`.
+ *
+ * --- Original docs ---
  * Opt-in batch upgrade: run LLM tag enrichment on every bill whose
  * `topicTagsSource` is anything other than "llm" (covers null/legacy bills,
  * api-only, keyword-only, none). The API anchor is preserved; up to 2
  * additional LoC labels may be added per bill.
- *
- * Run with: npm run enrich:tags
  *
  * Cost: ~1 Bedrock Haiku call per bill, throttled at 250ms between calls to
  * stay polite. Logs source per bill (llm/error/skipped).
