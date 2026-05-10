@@ -29,6 +29,8 @@ interface Args {
   concurrency: number;
   resume: boolean;
   resumeMinutes: number;
+  /** Target one or more specific bill ids (comma-separated). Bypasses --limit/--resume. */
+  billIds?: string[];
 }
 
 function parseArgs(): Args {
@@ -43,6 +45,10 @@ function parseArgs(): Args {
     else if (flag === "--concurrency") { args.concurrency = Math.max(1, Number(val)); i++; }
     else if (flag === "--resume") { args.resume = true; }
     else if (flag === "--resume-minutes") { args.resumeMinutes = Number(val); i++; }
+    else if (flag === "--bill") {
+      args.billIds = val.split(",").map((s) => s.trim()).filter(Boolean);
+      i++;
+    }
   }
   return args;
 }
@@ -97,12 +103,15 @@ async function main() {
 
   const where: Record<string, unknown> = {};
   if (args.since) where.introducedAt = { gte: args.since };
+  if (args.billIds && args.billIds.length > 0) {
+    where.id = args.billIds.length === 1 ? args.billIds[0] : { in: args.billIds };
+  }
 
   let bills = await prisma.bill.findMany({
     where,
     select: { id: true, title: true, congress: true, type: true, number: true },
     orderBy: { introducedAt: "desc" },
-    take: args.limit,
+    take: args.billIds && args.billIds.length > 0 ? undefined : args.limit,
   });
 
   if (args.resume) {

@@ -42,7 +42,7 @@ export const SUMMARY_SCHEMA = {
       minLength: 500,
       maxLength: 1400,
       description:
-        "ONE string containing two clearly labeled sections, each 3-5 sentences (~70-100 words). Format EXACTLY as:\n\n" +
+        "ONE string containing two clearly labeled sections, each 2-4 sentences (~70-100 words). Format EXACTLY as:\n\n" +
         "WHY THIS MATTERS:\n<consequences only — what tangibly changes in daily life, government operations, or markets if this passes; state neutrally; do NOT list affected groups here>\n\n" +
         "WHO THIS AFFECTS:\n<specific groups, ordered most-to-least directly impacted; name federal agencies in full on first reference (e.g., 'Department of Veterans Affairs'); be concrete about everyday-person groups (e.g., 'low-income renters in rural counties', 'Medicare beneficiaries over 65'); avoid vague phrases like 'many Americans'>",
     },
@@ -80,10 +80,10 @@ OTHER FIELDS:
 - whyItMatters: ONE string containing two clearly labeled sections separated by a blank line. Format EXACTLY as:
 
 WHY THIS MATTERS:
-<3-5 sentences on consequences only — what tangibly changes if this passes; do NOT list affected groups here>
+<2-4 sentences on consequences only — what tangibly changes if this passes; do NOT list affected groups here>
 
 WHO THIS AFFECTS:
-<3-5 sentences naming specific groups, ordered most-to-least directly impacted; be concrete (e.g., "dairy farmers in the Upper Midwest", "Medicare beneficiaries 65+"); avoid "many Americans" or other vague framing>
+<2-4 sentences naming specific groups, ordered most-to-least directly impacted; be concrete (e.g., "dairy farmers in the Upper Midwest", "Medicare beneficiaries 65+"); avoid "many Americans" or other vague framing>
 
 IMPORTANT:
 - When the bill says "Section X is amended by inserting Y", explain what that CHANGE means in practice — do not quote the amendment instruction.
