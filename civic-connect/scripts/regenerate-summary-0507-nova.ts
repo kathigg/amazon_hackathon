@@ -19,8 +19,7 @@
 import { prisma } from "../lib/prisma";
 import { fetchBillText } from "../lib/congress";
 import { preprocessBillText } from "../lib/bill-text";
-import { buildPrompt, SUMMARY_SCHEMA, type BillSummary } from "../lib/summarize";
-import { callBedrockStructured } from "../lib/bedrock-structured";
+import { summarizeBill } from "../lib/summarize";
 
 interface Args {
   limit?: number;
@@ -61,35 +60,28 @@ async function regenerateOne(bill: { id: string; title: string; congress: number
     if (res.ok) billText = preprocessBillText(await res.text());
   }
 
-  // Bypass summarizeBill() — its withTimeout wrapper opens a process-wide
-  // circuit breaker on first failure, which cascades through parallel workers.
-  // Call Bedrock directly so each worker is independent.
-  const aiModel = process.env.AWS_BEDROCK_MODEL || "amazon.nova-micro-v1:0";
-  const summary = await callBedrockStructured<BillSummary>({
-    prompt: buildPrompt(bill.title, billText),
-    toolName: "submit_summary",
-    toolDescription: "Submit the structured plain-language summary of this bill",
-    inputSchema: SUMMARY_SCHEMA as unknown as Record<string, unknown>,
-    maxTokens: 2400,
-    temperature: 0.2,
-  });
+  // skipTimeout: each parallel worker handles its own try/catch (worker loop
+  // below), so we don't want the cross-worker circuit breaker that withTimeout
+  // opens on first failure.
+  const { plainLanguage, keyProvisions, whyItMatters, aiProvider, aiModel } =
+    await summarizeBill(bill.title, billText, { skipTimeout: true });
 
   await prisma.summary.upsert({
     where: { billId: bill.id },
     update: {
-      plainLanguage: summary.plainLanguage,
-      keyProvisions: summary.keyProvisions,
-      whyItMatters: summary.whyItMatters,
-      aiProvider: "bedrock",
+      plainLanguage,
+      keyProvisions,
+      whyItMatters,
+      aiProvider,
       aiModel,
       generatedAt: new Date(),
     },
     create: {
       billId: bill.id,
-      plainLanguage: summary.plainLanguage,
-      keyProvisions: summary.keyProvisions,
-      whyItMatters: summary.whyItMatters,
-      aiProvider: "bedrock",
+      plainLanguage,
+      keyProvisions,
+      whyItMatters,
+      aiProvider,
       aiModel,
     },
   });

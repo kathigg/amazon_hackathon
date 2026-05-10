@@ -44,6 +44,13 @@ export interface CallBedrockStructuredOptions {
   modelId?: string;
 }
 
+export interface CallBedrockTextOptions {
+  prompt: string;
+  modelId?: string;
+  maxTokens?: number;
+  temperature?: number;
+}
+
 function getModelId(override?: string): string {
   return (
     override ||
@@ -205,6 +212,36 @@ export async function callBedrockStructuredNative<T>(
       }`
     );
   }
+}
+
+// --- Path 3: plain text (no schema, no tool-use) ----------------------------
+
+export async function callBedrockText(opts: CallBedrockTextOptions): Promise<string> {
+  const client = newClient();
+  const response = await client.send(
+    new ConverseCommand({
+      modelId: getModelId(opts.modelId),
+      messages: [{ role: "user", content: [{ text: opts.prompt }] }],
+      inferenceConfig: {
+        maxTokens: opts.maxTokens ?? 2400,
+        temperature: opts.temperature ?? 0.2,
+      },
+    })
+  );
+
+  // Anthropic reasoning models can emit reasoningContent before the text
+  // block, so don't assume index 0 — same defensive read as the native path.
+  const blocks = response.output?.message?.content ?? [];
+  const textBlock = blocks.find(
+    (b: { text?: string }) => typeof b.text === "string" && b.text.length > 0
+  );
+  if (!textBlock?.text) {
+    const blockTypes = blocks.map((b) => Object.keys(b).join(",")).join(" | ");
+    throw new Error(
+      `Bedrock returned no text content (blocks: [${blockTypes}])`
+    );
+  }
+  return textBlock.text.trim();
 }
 
 // --- Dispatcher (public entry point) ----------------------------------------
