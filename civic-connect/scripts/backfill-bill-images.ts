@@ -1,4 +1,13 @@
 #!/usr/bin/env tsx
+/**
+ * LEGACY — writes Bill.imageUrl with a deterministic Wikimedia hotlink.
+ *
+ * The current curated path is: curate:images → embed:images → reassign:images,
+ * which populates Bill.imageAssetId from the BillImageAsset pool. This script
+ * does NOT touch imageAssetId; it only fills the legacy fallback field. Use
+ * `npm run backfill:bill-images` (scripts/backfill-bill-image-assets.ts) for
+ * curated-pool assignment.
+ */
 import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import { getBillImageRecord } from "../lib/bill-image-categories";

@@ -1074,6 +1074,31 @@ gh issue close 3
 
 ---
 
+## Ongoing image-pool maintenance
+
+§3 is the one-time migration. After it lands, the curated pool is maintained from your laptop against Aurora (or against the local mirror, whichever has fresher data) using these scripts:
+
+```
+npm run curate:images                              # add new BillImageAsset rows from Wikimedia/Openverse
+npm run embed:images                               # fill BillImageAsset.embedding (Titan Multimodal v1)
+npm run reassign:images -- --apply                 # rewrite Bill.imageAssetId with cosine + 1-to-1 uniqueness
+
+npm run recurate:thin                              # audit + curate thin loc-area cells
+npm run recurate:thin -- --apply                   # commit
+
+npm run purge:pdf-images                           # dry-run identify PDF-derived rows
+npm run purge:pdf-images -- --apply                # delete DB rows + S3 objects, null Bill.imageAssetId
+```
+
+Two ordering rules are non-negotiable:
+
+1. **`curate:images` → `embed:images` → `reassign:images`.** `curate:images` inserts rows with `embedding = []`. Without the embed pass, every cosine selection in `assignBillImageAsset` and `reassign-bill-images.ts` silently falls back to a deterministic hash, which negates the whole point of the curated pool.
+2. **`purge:pdf-images --apply` → `reassign:images -- --apply`.** The purge nulls `Bill.imageAssetId` for every bill that referenced a deleted asset (the FK is `ON DELETE RESTRICT`, so the script null-out happens inside the same transaction). Until you reassign, those bills render the legacy `Bill.imageUrl` hotlink or the static topic-pool fallback.
+
+If you change `Bill.topicTags` or `Bill.legislativeSubjects` on existing rows (e.g., a taxonomy backfill), the prior `imageAssetId` becomes stale because the category-key set changed — re-run `reassign:images -- --apply` for the affected slice.
+
+---
+
 ## Notes
 
 - **The whole thing has to run in `us-east-1`.** If `aws sts get-caller-identity` shows a different region or account, stop.

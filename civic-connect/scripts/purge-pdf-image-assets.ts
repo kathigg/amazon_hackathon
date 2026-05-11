@@ -16,6 +16,12 @@
  * Usage:
  *   npm run purge:pdf-images               # dry-run
  *   npm run purge:pdf-images -- --apply    # hard delete (DB + S3)
+ *
+ * After --apply, the bills that referenced these assets have
+ * Bill.imageAssetId nulled and will render the legacy/static fallback until
+ * reassigned. Always follow with:
+ *
+ *   npm run reassign:images -- --apply
  */
 
 import { config as loadEnv } from "dotenv";
