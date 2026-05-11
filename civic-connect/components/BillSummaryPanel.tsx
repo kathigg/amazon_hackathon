@@ -20,14 +20,19 @@ export default function BillSummaryPanel({ billId }: { billId: string }) {
   const elapsedTimer = useRef<number | null>(null);
 
   async function fetchStatus(signal?: AbortSignal) {
-    const res = await fetch(`/api/bills/${billId}/summary`, { signal });
-    if (!res.ok) return;
-    const data = (await res.json()) as {
-      status: SummaryStatus;
-      summary: SummaryPayload | null;
-    };
-    setStatus(data.status);
-    setSummary(data.summary);
+    try {
+      const res = await fetch(`/api/bills/${billId}/summary`, { signal });
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        status: SummaryStatus;
+        summary: SummaryPayload | null;
+      };
+      setStatus(data.status);
+      setSummary(data.summary);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      throw err;
+    }
   }
 
   useEffect(() => {

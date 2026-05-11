@@ -956,8 +956,10 @@ BID=$(curl -sS 'https://www.civicconnect.net/api/bills?limit=1' | jq -r '.bills[
 curl -sSI "https://www.civicconnect.net/api/bill-image/${BID}"
 # expect: HTTP/2 307, location: https://<dXXX>.cloudfront.net/v1/loc-area/...
 
-# Pull the home feed and confirm imageUrl points at CloudFront, not Wikimedia.
-curl -sS https://www.civicconnect.net/api/home-feed | jq '.latestBills[0].imageUrl'
+# Confirm imageUrl points at CloudFront, not Wikimedia. (The homepage is now
+# server-rendered, so use /api/bills which exposes the same imageUrl field
+# the home feed reads. /api/home-feed was removed.)
+curl -sS 'https://www.civicconnect.net/api/bills?limit=1' | jq '.bills[0].imageUrl'
 # expect: "https://<dXXX>.cloudfront.net/v1/loc-area/..."
 
 # Open the page in a browser. Devtools network panel must show:
