@@ -12,6 +12,7 @@ import BillViewTracker from "@/components/BillViewTracker";
 import RepresentativeStances from "@/components/RepresentativeStances";
 import BillIssueVisual from "@/components/BillIssueVisual";
 import BillSummaryPanel from "@/components/BillSummaryPanel";
+import RelativeTime from "@/components/RelativeTime";
 import { getCurrentUser } from "@/lib/user-tracking";
 import { getBillChamberFocus } from "@/lib/legislative";
 import { getRelatedOrganizationsAndEvents } from "@/lib/organization-matching";
@@ -25,7 +26,6 @@ import { parseTerm } from "@/lib/taxonomy";
 import {
   formatBillDate,
   formatBillDateTime,
-  formatRelativeBillTime,
   formatBillShortDate,
 } from "@/lib/bill-dates";
 import { withTimeout } from "@/lib/with-timeout";
@@ -139,7 +139,6 @@ export default async function BillDetailPage({
   );
   const chamberFocus = getBillChamberFocus(bill.status, bill.type);
   const stageDate = bill.stageReachedAt ?? bill.latestActionAt;
-  const stageRelative = formatRelativeBillTime(stageDate);
   const stageAbsolute = stageDate ? formatBillShortDate(stageDate) : null;
   const stageText = bill.latestActionText || bill.status;
   const plainLanguage = getSummaryPreview(bill.summary?.plainLanguage);
@@ -251,11 +250,10 @@ export default async function BillDetailPage({
                           {stageAbsolute}
                         </span>
                       )}
-                      {stageRelative && (
-                        <span className="ml-2 text-gray-400 normal-case tracking-normal">
-                          ({stageRelative})
-                        </span>
-                      )}
+                      <RelativeTime
+                        value={stageDate}
+                        className="ml-2 text-gray-400 normal-case tracking-normal"
+                      />
                     </p>
                     <p
                       className="mt-1 text-sm font-medium text-navy"

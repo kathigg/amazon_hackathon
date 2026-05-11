@@ -69,6 +69,10 @@ function isTrustedStoredImage(imageUrl?: string | null): imageUrl is string {
     return true;
   }
 
+  if (imageUrl.startsWith("/curated-images/")) {
+    return true;
+  }
+
   try {
     const url = new URL(imageUrl);
     if (url.protocol !== "https:") return false;

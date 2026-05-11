@@ -3,8 +3,9 @@
 import Link from "next/link";
 import BillIssueVisual from "@/components/BillIssueVisual";
 import MilestonePill from "@/components/MilestonePill";
+import RelativeTime from "@/components/RelativeTime";
 import { getSummaryPreview } from "@/lib/bill-summary";
-import { formatBillShortDate, formatRelativeBillTime } from "@/lib/bill-dates";
+import { formatBillShortDate } from "@/lib/bill-dates";
 import { formatTopicTag } from "@/lib/topics";
 import type { ProgressStage } from "@/lib/bill-progress";
 
@@ -46,7 +47,6 @@ export default function BillFeedCard({
   const primaryTopic = topicTags[0] ? formatTopicTag(topicTags[0]) : "General";
   const summaryPreview = getSummaryPreview(plainLanguage);
   const stageDate = stageReachedAt ?? latestActionAt;
-  const stageRelative = formatRelativeBillTime(stageDate);
   const stageAbsolute = stageDate ? formatBillShortDate(stageDate) : null;
   const stageText = latestActionText || status;
 
@@ -106,7 +106,7 @@ export default function BillFeedCard({
               <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-navy/45">
                 Latest update
                 {stageAbsolute && <span className="ml-2 text-navy/70">{stageAbsolute}</span>}
-                {stageRelative && <span className="ml-2 text-navy/45">({stageRelative})</span>}
+                <RelativeTime value={stageDate} className="ml-2 text-navy/45" />
               </div>
               {stageText && (
                 <p className="mt-1 text-sm leading-snug text-navy/80">{stageText}</p>

@@ -7,6 +7,17 @@ import { prisma } from "./prisma";
 import { fetchCosponsors, type CongressBill } from "./congress";
 import { fetchBillVotes } from "./votes";
 import { upsertBillMetadataFromCongress } from "./bill-ingestion";
+import { fetchAssetUrlsForBills } from "./image-pool-read";
+
+async function overlayCuratedImage<T extends { id: string; imageUrl: string | null } | null>(
+  bill: T
+): Promise<T> {
+  if (!bill) return bill;
+  const map = await fetchAssetUrlsForBills([bill.id]);
+  const curated = map.get(bill.id);
+  if (curated) bill.imageUrl = curated;
+  return bill;
+}
 
 const BASE = "https://api.congress.gov/v3";
 function getCongressApiKey() {
@@ -19,7 +30,7 @@ export async function getBillOrFetch(billId: string) {
   const existing = await getCachedBillById(billId);
 
   if (existing) {
-    return existing;
+    return overlayCuratedImage(existing);
   }
 
   const freshExisting = await prisma.bill.findUnique({
@@ -28,7 +39,7 @@ export async function getBillOrFetch(billId: string) {
   });
 
   if (freshExisting) {
-    return freshExisting;
+    return overlayCuratedImage(freshExisting);
   }
 
   if (process.env.ENABLE_ON_DEMAND_BILL_FETCH !== "true") {
@@ -79,10 +90,11 @@ export async function getBillOrFetch(billId: string) {
 
   void fetchAndStoreStances(billId, congress, type, number);
 
-  return prisma.bill.findUnique({
+  const stored = await prisma.bill.findUnique({
     where: { id: billId },
     include: { summary: true, stances: true },
   });
+  return overlayCuratedImage(stored);
 }
 
 const getCachedBillById = unstable_cache(

@@ -245,6 +245,39 @@ LG=$(aws logs describe-log-groups --region us-east-1 \
 aws logs tail "$LG" --since 5m --follow --region us-east-1
 ```
 
+### 1.5.5 Invalidate the website CloudFront edge cache
+
+The website-fronting CloudFront distribution caches `/` and `/bills/:path*` HTML for `s-maxage=60` + `stale-while-revalidate=300` (`civic-connect/next.config.mjs`). That means **for ~6 minutes after the ECS rollout completes, visitors can still receive HTML that references the old build's content-hashed JS chunks** — which the new container no longer ships. The browser then 404s on those chunk URLs and falls into the `ClientErrorBoundary` "safe fallback" UI. Symptoms: page flashes, then "The page hit a client error" + console `ChunkLoadError`.
+
+Invalidate the edge cache as soon as the deployment shows `PRIMARY`/`COMPLETED`:
+
+```bash
+# Find the site distribution (filter by alias containing 'civicconnect' — image-pool
+# distribution from §3 has no aliases, so it won't match).
+DIST_ID=$(aws cloudfront list-distributions --region us-east-1 \
+  --query "DistributionList.Items[?Aliases.Items != null && Aliases.Items[?contains(@, 'civicconnect')]].Id | [0]" \
+  --output text)
+test -n "$DIST_ID" && test "$DIST_ID" != "None" || { echo "could not find site distribution; aborting"; exit 1; }
+echo "Site distribution: $DIST_ID"
+
+INV_ID=$(aws cloudfront create-invalidation --region us-east-1 \
+  --distribution-id "$DIST_ID" --paths '/*' \
+  --query 'Invalidation.Id' --output text)
+echo "Invalidation: $INV_ID"
+
+# Block until the invalidation completes (~30-90s). Don't run §1.6 until this finishes,
+# or the validation curls will hit stale HTML and falsely report "fine."
+aws cloudfront wait invalidation-completed --region us-east-1 \
+  --distribution-id "$DIST_ID" --id "$INV_ID"
+echo "Invalidation done."
+```
+
+Notes:
+- `/*` invalidates everything, including `/_next/static/...` chunks. That's fine — chunk filenames are content-hashed, so the next request for each chunk simply re-fetches from ECS and re-warms the edge. No correctness risk; small cold-cache latency hit for the first wave of post-deploy requests.
+- CloudFront free tier covers **1,000 path invalidations / month**. `/*` counts as one (the wildcard is the path), so a deploy a day is well within free tier.
+- **Do not** invalidate the image-pool distribution from §3. Its keys are content-hashed (sha256 in the object name) and `cdnUrl` values in `BillImageAsset` are immutable. Invalidating it wastes the free-tier budget and re-warms a cache that didn't need it.
+- If `DIST_ID` resolves to `None`, the alias filter didn't match — list distributions with `aws cloudfront list-distributions --query 'DistributionList.Items[].[Id, DomainName, Aliases.Items]' --output table` and find the one fronting the website, then hard-code its ID.
+
 ### 1.6 Validate
 
 ```bash

@@ -8,10 +8,10 @@ import MilestonePill from "@/components/MilestonePill";
 import { getActiveTaxonomy } from "@/lib/taxonomy";
 import { getBillsBySort, type BillWithSummary } from "@/lib/bill-feed";
 import { toProgressStage } from "@/lib/bill-progress";
+import RelativeTime from "@/components/RelativeTime";
 import {
   formatBillDate,
   formatBillShortDate,
-  formatRelativeBillTime,
 } from "@/lib/bill-dates";
 import { formatTopicTag } from "@/lib/topics";
 import { getSummaryPreview } from "@/lib/bill-summary";
@@ -46,7 +46,6 @@ export default async function HomePage() {
 
   const leadSummary = getSummaryPreview(leadBill?.summary?.plainLanguage);
   const leadStageDate = leadBill?.stageReachedAt ?? leadBill?.latestActionAt;
-  const leadStageRelative = formatRelativeBillTime(leadStageDate ?? null);
   const leadStageAbsolute = leadStageDate
     ? formatBillShortDate(leadStageDate)
     : null;
@@ -99,9 +98,7 @@ export default async function HomePage() {
                           {leadStageAbsolute && (
                             <span className="ml-2 text-navy/70">{leadStageAbsolute}</span>
                           )}
-                          {leadStageRelative && (
-                            <span className="ml-2 text-navy/45">({leadStageRelative})</span>
-                          )}
+                          <RelativeTime value={leadStageDate ?? null} className="ml-2 text-navy/45" />
                         </div>
                         {leadStageText && (
                           <p className="mt-1 text-sm leading-snug text-navy/80">{leadStageText}</p>

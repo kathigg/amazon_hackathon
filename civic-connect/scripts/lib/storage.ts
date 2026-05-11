@@ -63,17 +63,23 @@ async function createLocalStorage(localDir: string): Promise<Storage> {
     );
   }
 
+  // keys arrive URL-encoded (so they're safe in cdnUrl); on disk we need the
+  // decoded form so Next.js's static handler — which percent-decodes the URL
+  // before file lookup — can find them.
+  const toDiskPath = (key: string) =>
+    path.join(absDir, ...key.split("/").map(decodeURIComponent));
+
   return {
     async putImage(key, bytes) {
-      const target = path.join(absDir, key);
+      const target = toDiskPath(key);
       await fs.mkdir(path.dirname(target), { recursive: true });
       await fs.writeFile(target, bytes);
     },
     async getImage(key) {
-      return fs.readFile(path.join(absDir, key));
+      return fs.readFile(toDiskPath(key));
     },
     async objectExists(key) {
-      return existsSync(path.join(absDir, key));
+      return existsSync(toDiskPath(key));
     },
     buildPublicUrl(key) {
       return `${urlPrefix}/${key.replace(/^\/+/, "")}`;
