@@ -56,12 +56,17 @@ export async function embedImage(bytes: Buffer): Promise<number[]> {
   return invokeTitan({ inputImage: bytes.toString("base64") });
 }
 
+// amazon.titan-embed-image-v1 caps inputText at ~128 tokens (~500 chars).
+// Longer input is silently truncated server-side; this slice just avoids
+// wasted bytes on the wire and keeps the cost predictable.
+const MAX_TEXT_CHARS = 500;
+
 export async function embedText(text: string): Promise<number[]> {
   const trimmed = text.trim();
   if (!trimmed) {
     throw new Error("embedText: empty input");
   }
-  return invokeTitan({ inputText: trimmed.slice(0, 8000) });
+  return invokeTitan({ inputText: trimmed.slice(0, MAX_TEXT_CHARS) });
 }
 
 export function cosine(a: number[], b: number[]): number {

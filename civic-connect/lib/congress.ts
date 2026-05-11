@@ -56,11 +56,10 @@ export async function fetchBillDetail(
   const s = data.bill?.sponsors?.[0];
   const sponsor = s ? `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() : null;
   const policyArea: string | null = data.bill?.policyArea?.name ?? null;
-  const rawSubjects: Array<{ name?: string }> =
-    data.bill?.subjects?.legislativeSubjects ?? [];
-  const subjects = rawSubjects
-    .map((entry) => entry.name)
-    .filter((name): name is string => Boolean(name));
+  // The bill detail endpoint only returns a `{count, url}` stub for subjects;
+  // the actual list lives at /bill/{c}/{t}/{n}/subjects and must be fetched
+  // separately. Skipping it leaves Bill.legislativeSubjects empty across the DB.
+  const subjects = await fetchBillSubjects(congress, type, number);
   const rawLaws: Array<{ number?: string; type?: string }> = data.bill?.laws ?? [];
   const laws: BillLaw[] = rawLaws
     .filter((l) => l.number && l.type)
@@ -79,6 +78,31 @@ export async function fetchBillDetail(
     updateDate: data.bill?.updateDate ?? null,
     originChamber,
   };
+}
+
+export async function fetchBillSubjects(
+  congress: number,
+  type: string,
+  number: string
+): Promise<string[]> {
+  const subjects: string[] = [];
+  let offset = 0;
+  const limit = 250;
+  while (true) {
+    const url = `${BASE}/bill/${congress}/${type.toLowerCase()}/${number}/subjects?api_key=${getKey()}&format=json&limit=${limit}&offset=${offset}`;
+    const res = await fetch(url, { next: { revalidate: 3600 } });
+    if (!res.ok) break;
+    const data = await res.json();
+    const page: Array<{ name?: string }> =
+      data.subjects?.legislativeSubjects ?? [];
+    if (page.length === 0) break;
+    for (const entry of page) {
+      if (entry.name) subjects.push(entry.name);
+    }
+    if (page.length < limit) break;
+    offset += limit;
+  }
+  return subjects;
 }
 
 export interface CosponsorTally {

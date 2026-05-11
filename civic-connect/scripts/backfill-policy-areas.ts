@@ -17,11 +17,22 @@ import { fetchBillDetail } from "../lib/congress";
 import { classifyBillTaxonomy } from "../lib/taxonomy/classify";
 
 async function main() {
+  const onlyEmpty = process.argv.includes("--only-empty");
   const bills = await prisma.bill.findMany({
+    where: onlyEmpty
+      ? {
+          OR: [
+            { topicTags: { isEmpty: true } },
+            { legislativeSubjects: { isEmpty: true } },
+          ],
+        }
+      : undefined,
     select: { id: true, congress: true, type: true, number: true, title: true },
     orderBy: { introducedAt: "desc" },
   });
-  console.log(`Re-classifying ${bills.length} bills against LoC Policy Areas...\n`);
+  console.log(
+    `Re-classifying ${bills.length} bills against LoC Policy Areas${onlyEmpty ? " (only-empty filter: missing topicTags OR legislativeSubjects)" : ""}...\n`
+  );
 
   const counts = { api: 0, "llm-fallback": 0, none: 0, error: 0 };
 
@@ -31,7 +42,11 @@ async function main() {
       const result = await classifyBillTaxonomy(detail, bill.title);
       await prisma.bill.update({
         where: { id: bill.id },
-        data: { topicTags: result.topicTags, topicTagsSource: result.source },
+        data: {
+          topicTags: result.topicTags,
+          topicTagsSource: result.source,
+          legislativeSubjects: detail?.subjects ?? [],
+        },
       });
       counts[result.source]++;
       console.log(
