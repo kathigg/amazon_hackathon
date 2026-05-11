@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { unstable_cache, unstable_noStore as noStore } from "next/cache";
+import { unstable_cache } from "next/cache";
 import { cookies } from "next/headers";
 import BillLookup from "@/components/BillLookup";
 import ClientErrorBoundary from "@/components/ClientErrorBoundary";
@@ -60,8 +60,6 @@ function formatRepresentativeOpinionCount(count: number): string {
 }
 
 export default async function HomePage() {
-  noStore();
-
   const seenBillIds = parseSeenBillIds(
     cookies().get(HOME_SEEN_BILLS_COOKIE)?.value
   );

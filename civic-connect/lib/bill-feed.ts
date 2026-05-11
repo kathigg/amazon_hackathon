@@ -393,11 +393,14 @@ function compareHomeFeedItems(
 }
 
 function getHomeFeedTimestamp(bill: BillWithSummary): number {
-  return (
+  const value =
     bill.stageReachedAt ??
     bill.latestActionAt ??
-    bill.introducedAt
-  ).getTime();
+    bill.introducedAt;
+  const date = value instanceof Date ? value : new Date(value);
+  const timestamp = date.getTime();
+
+  return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
 export function rankBillsByHotScore<T extends { introducedAt: Date; viewCount: number }>(
