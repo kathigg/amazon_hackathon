@@ -1,4 +1,5 @@
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
@@ -67,6 +68,15 @@ export async function putImage(
       Body: bytes,
       ContentType: contentType,
       CacheControl: "public, max-age=31536000, immutable",
+    })
+  );
+}
+
+export async function deleteObject(storageKey: string): Promise<void> {
+  await getS3Client().send(
+    new DeleteObjectCommand({
+      Bucket: getImageBucket(),
+      Key: storageKey,
     })
   );
 }

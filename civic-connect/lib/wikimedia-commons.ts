@@ -100,6 +100,14 @@ function mapCommonsPage(p: CommonsPage): OpenverseImage | null {
   const ii = p.imageinfo?.[0];
   if (!ii) return null;
 
+  // Drop non-image source files (PDFs, DjVu, TIFFs, video, SVG). Commons happily
+  // serves a JPEG thumbnail of a PDF's first page, which sneaks past the
+  // download-time mime check and pollutes the pool with book/hearing covers.
+  const mime = (ii.mime ?? "").toLowerCase();
+  if (mime && !mime.startsWith("image/")) return null;
+  const lowerUrl = (ii.url ?? "").toLowerCase();
+  if (/\.(pdf|djvu|tif|tiff|ogv|webm|svg)(?:$|\?)/i.test(lowerUrl)) return null;
+
   const em = ii.extmetadata ?? {};
   const license = (em.LicenseShortName?.value ?? "").trim();
   const normalized = normalizeLicense(license);

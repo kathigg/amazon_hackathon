@@ -124,21 +124,40 @@ function pickDeterministic(
   return toSelection(pool[index]);
 }
 
+export interface AssetScore {
+  id: string;
+  cdnUrl: string;
+  categoryKey: string;
+  score: number;
+}
+
+export function scoreAssetsForBill(
+  billEmbedding: readonly number[],
+  pool: readonly { id: string; cdnUrl: string; categoryKey: string; embedding: number[] }[]
+): AssetScore[] {
+  const scored: AssetScore[] = [];
+  for (const candidate of pool) {
+    if (candidate.embedding.length === 0) continue;
+    scored.push({
+      id: candidate.id,
+      cdnUrl: candidate.cdnUrl,
+      categoryKey: candidate.categoryKey,
+      score: cosine(billEmbedding as number[], candidate.embedding),
+    });
+  }
+  return scored;
+}
+
 function pickByCosine(
   billEmbedding: number[],
   pool: AssetCandidate[]
 ): AssetSelection | null {
-  let best: AssetCandidate | null = null;
-  let bestScore = -Infinity;
-  for (const candidate of pool) {
-    if (candidate.embedding.length === 0) continue;
-    const score = cosine(billEmbedding, candidate.embedding);
-    if (score > bestScore) {
-      bestScore = score;
-      best = candidate;
-    }
+  let best: AssetScore | null = null;
+  for (const scored of scoreAssetsForBill(billEmbedding, pool)) {
+    if (!best || scored.score > best.score) best = scored;
   }
-  return best ? toSelection(best) : null;
+  if (!best) return null;
+  return { id: best.id, cdnUrl: best.cdnUrl, categoryKey: best.categoryKey };
 }
 
 function toSelection(candidate: AssetCandidate): AssetSelection {

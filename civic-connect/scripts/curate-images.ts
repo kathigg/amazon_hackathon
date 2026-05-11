@@ -40,7 +40,7 @@ import { LOC_POLICY_AREA } from "../lib/taxonomy/loc-policy-area";
 import { getStorage, type Storage } from "./lib/storage";
 import { areaCategoryKey, subjectCategoryKey } from "../lib/image-pool";
 
-interface CliOptions {
+export interface CliOptions {
   audit: boolean;
   mode: "areas" | "subjects";
   maxPerTerm: number;
@@ -50,6 +50,17 @@ interface CliOptions {
   only: string | null;
   throttleMs: number;
 }
+
+export const DEFAULT_CLI_OPTIONS: CliOptions = {
+  audit: false,
+  mode: "areas",
+  maxPerTerm: 80,
+  maxPages: 5,
+  pageSize: 50,
+  top: 100,
+  only: null,
+  throttleMs: 600,
+};
 
 function parseArgs(argv: string[]): CliOptions {
   const opts: CliOptions = {
@@ -83,7 +94,7 @@ function parseArgs(argv: string[]): CliOptions {
   return opts;
 }
 
-interface Cell {
+export interface Cell {
   categoryKey: string;
   label: string;
   queries: string[];
@@ -222,15 +233,25 @@ interface DownloadedImage {
   sha256: string;
 }
 
+// Wikimedia upload servers enforce the User-Agent policy at
+// https://meta.wikimedia.org/wiki/User-Agent_policy . Generic browser UAs
+// (or no UA) get a 429. A compliant identifier with contact info passes.
+const DOWNLOAD_USER_AGENT =
+  "CivicConnectImageCurator/0.1 (https://civicconnect.net; civic@civicconnect.net) Node-fetch/3";
+
 async function downloadCandidate(image: OpenverseImage): Promise<DownloadedImage | null> {
-  if (!image.url) return null;
+  // Prefer the iiurlwidth=1280 thumbnail over the full-res original. Many
+  // full-resolution Commons assets exceed our 5MB cap (or aren't even JPEG —
+  // e.g., TIFFs from museum scans), and we don't need them at card size.
+  const downloadUrl = image.thumbnail ?? image.url;
+  if (!downloadUrl) return null;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20_000);
   try {
-    const response = await fetch(image.url, {
+    const response = await fetch(downloadUrl, {
       signal: controller.signal,
-      headers: { "User-Agent": "CivicConnect/0.1 (Image curator)" },
+      headers: { "User-Agent": DOWNLOAD_USER_AGENT },
     });
     if (!response.ok) return null;
 
@@ -311,7 +332,7 @@ async function commitCandidate(
   return "inserted";
 }
 
-async function runAudit(cells: Cell[], opts: CliOptions): Promise<void> {
+export async function runAudit(cells: Cell[], opts: CliOptions): Promise<void> {
   console.log(
     `\nAudit mode — ${cells.length} cells, source=Wikimedia Commons, license=CC0/PDM\n`
   );
@@ -337,7 +358,7 @@ async function runAudit(cells: Cell[], opts: CliOptions): Promise<void> {
   );
 }
 
-async function runCommit(cells: Cell[], opts: CliOptions): Promise<void> {
+export async function runCommit(cells: Cell[], opts: CliOptions): Promise<void> {
   // Resolve storage backend up front so we fail fast on missing env, not after
   // hours of Openverse fetching.
   const storage = await getStorage();
@@ -365,8 +386,12 @@ async function runCommit(cells: Cell[], opts: CliOptions): Promise<void> {
       const download = await downloadCandidate(image);
       if (!download) {
         stats.downloadFailed += 1;
+        // Even failures need a throttle — a 429 doesn't reset the clock.
+        await sleep(800);
         continue;
       }
+      // Wikimedia caps anonymous traffic at ~2 req/s per IP. 800ms keeps us safe.
+      await sleep(800);
 
       try {
         const result = await commitCandidate(storage, cell, image, download);
@@ -408,11 +433,14 @@ async function main(): Promise<void> {
   }
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+const __invokedDirectly = process.argv[1]?.endsWith("curate-images.ts");
+if (__invokedDirectly) {
+  main()
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

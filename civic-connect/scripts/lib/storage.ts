@@ -19,6 +19,7 @@ export interface Storage {
   putImage(key: string, bytes: Uint8Array, contentType: string): Promise<void>;
   getImage(key: string): Promise<Buffer>;
   objectExists(key: string): Promise<boolean>;
+  deleteObject(key: string): Promise<void>;
   buildPublicUrl(key: string): string;
   describe(): string;
 }
@@ -81,6 +82,9 @@ async function createLocalStorage(localDir: string): Promise<Storage> {
     async objectExists(key) {
       return existsSync(toDiskPath(key));
     },
+    async deleteObject(key) {
+      await fs.unlink(toDiskPath(key)).catch(() => {});
+    },
     buildPublicUrl(key) {
       return `${urlPrefix}/${key.replace(/^\/+/, "")}`;
     },
@@ -96,6 +100,7 @@ async function createS3Storage(): Promise<Storage> {
     putImage: aws.putImage,
     getImage: aws.getImage,
     objectExists: aws.objectExists,
+    deleteObject: aws.deleteObject,
     buildPublicUrl: aws.buildCdnUrl,
     describe: () =>
       `S3 bucket s3://${aws.getImageBucket()} via CDN ${aws.getImageCdnHost()}`,
