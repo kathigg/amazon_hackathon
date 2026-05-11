@@ -1,12 +1,18 @@
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
+import { cookies } from "next/headers";
 import BillLookup from "@/components/BillLookup";
 import ClientErrorBoundary from "@/components/ClientErrorBoundary";
 import BillFeedCard from "@/components/BillFeedCard";
 import BillIssueVisual from "@/components/BillIssueVisual";
+import HomeFeedMemory from "@/components/HomeFeedMemory";
 import MilestonePill from "@/components/MilestonePill";
 import { getActiveTaxonomy } from "@/lib/taxonomy";
-import { getBillsBySort, type BillWithSummary } from "@/lib/bill-feed";
+import {
+  getHomeBillCandidates,
+  selectHomeFeedBills,
+  type HomeBillFeedItem,
+} from "@/lib/bill-feed";
 import { toProgressStage } from "@/lib/bill-progress";
 import RelativeTime from "@/components/RelativeTime";
 import {
@@ -16,33 +22,51 @@ import {
 import { formatTopicTag } from "@/lib/topics";
 import { getSummaryPreview } from "@/lib/bill-summary";
 import { withTimeout } from "@/lib/with-timeout";
+import {
+  HOME_SEEN_BILLS_COOKIE,
+  parseSeenBillIds,
+} from "@/lib/home-feed-history";
 
 const ACTIVE_TAXONOMY = getActiveTaxonomy();
 const HOME_FEED_TIMEOUT_MS = 2_500;
+const HOME_FEED_SIZE = 8;
 
 export const dynamic = "force-dynamic";
 
-const getCachedHomeFeed = unstable_cache(
-  async (): Promise<BillWithSummary[]> => {
-    return getBillsBySort({ sort: "latest", take: 8 });
+const getCachedHomeCandidates = unstable_cache(
+  async (): Promise<HomeBillFeedItem[]> => {
+    return getHomeBillCandidates();
   },
-  ["home-feed-v2"],
+  ["home-feed-candidates-v1"],
   { revalidate: 60 }
 );
 
-async function loadHomeFeed(): Promise<BillWithSummary[]> {
-  return withTimeout(
-    () => getCachedHomeFeed().catch(() => [] as BillWithSummary[]),
+async function loadHomeFeed(seenBillIds: string[]): Promise<HomeBillFeedItem[]> {
+  const candidates = await withTimeout(
+    () => getCachedHomeCandidates().catch(() => [] as HomeBillFeedItem[]),
     HOME_FEED_TIMEOUT_MS,
     []
   );
+
+  return selectHomeFeedBills({
+    candidates,
+    seenBillIds,
+    take: HOME_FEED_SIZE,
+  });
+}
+
+function formatRepresentativeOpinionCount(count: number): string {
+  return `${count} representative opinion${count === 1 ? "" : "s"}`;
 }
 
 export default async function HomePage() {
-  const bills = await loadHomeFeed();
+  const seenBillIds = parseSeenBillIds(
+    cookies().get(HOME_SEEN_BILLS_COOKIE)?.value
+  );
+  const bills = await loadHomeFeed(seenBillIds);
   const leadBill = bills[0];
   const railBills = bills.slice(1, 4);
-  const latestFeed = bills.slice(0, 6);
+  const frontPageBills = bills.slice(0, 6);
 
   const leadSummary = getSummaryPreview(leadBill?.summary?.plainLanguage);
   const leadStageDate = leadBill?.stageReachedAt ?? leadBill?.latestActionAt;
@@ -54,10 +78,11 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen">
+      <HomeFeedMemory billIds={bills.map((bill) => bill.id)} />
       <section className="border-b border-black/10">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/50 sm:px-6 lg:px-8">
           <span>Front Page</span>
-          <span>Updated throughout the day</span>
+          <span>New mix on every visit</span>
         </div>
       </section>
 
@@ -68,7 +93,7 @@ export default async function HomePage() {
               <div className="grid gap-10 xl:grid-cols-[minmax(0,1.5fr)_320px]">
                 <article>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-civic-red">
-                    Latest Bill
+                    Featured Bill
                   </p>
                   <Link href={`/bill/${leadBill.id}`} className="group block">
                     <h1 className="mt-4 font-display text-5xl leading-[0.95] text-navy transition-colors group-hover:text-civic-blue sm:text-6xl">
@@ -83,6 +108,9 @@ export default async function HomePage() {
                       <span>Introduced: {formatBillDate(leadBill.introducedAt)}</span>
                       {leadBill.latestActionAt && (
                         <span>Latest action: {formatBillDate(leadBill.latestActionAt)}</span>
+                      )}
+                      {leadBill.representativeOpinionCount > 0 && (
+                        <span>{formatRepresentativeOpinionCount(leadBill.representativeOpinionCount)}</span>
                       )}
                       {leadProgressStage && (
                         <MilestonePill
@@ -125,7 +153,7 @@ export default async function HomePage() {
 
                 <aside>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-                    More Recent Bills
+                    More from the docket
                   </p>
                   <div className="mt-4 space-y-4">
                     {railBills.map((bill, index) => {
@@ -151,6 +179,11 @@ export default async function HomePage() {
                               bill.latestActionAt ?? bill.introducedAt
                             )}
                           </p>
+                          {bill.representativeOpinionCount > 0 && (
+                            <p className="mt-2 text-xs uppercase tracking-[0.2em] text-navy/45">
+                              {formatRepresentativeOpinionCount(bill.representativeOpinionCount)}
+                            </p>
+                          )}
                           {stage && (
                             <div className="mt-2">
                               <MilestonePill stage={stage} billType={bill.type} />
@@ -169,10 +202,10 @@ export default async function HomePage() {
             <div className="flex items-end justify-between gap-4 border-b border-black/10 pb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-                  Latest
+                  Fresh docket
                 </p>
                 <h2 className="mt-2 font-display text-4xl text-navy">
-                  Newly introduced bills
+                  A new mix of bills
                 </h2>
               </div>
               <Link
@@ -184,7 +217,7 @@ export default async function HomePage() {
             </div>
 
             <div className="mt-2 border-t border-black/10">
-              {latestFeed.map((bill) => (
+              {frontPageBills.map((bill) => (
                 <BillFeedCard
                   key={bill.id}
                   id={bill.id}

@@ -17,6 +17,15 @@ export const PROGRESS_STAGES: ProgressStage[] = [
   "enacted",
 ];
 
+const PROGRESS_STAGE_RANK: Record<ProgressStage, number> = {
+  introduced: 0,
+  committee: 1,
+  passed_origin: 2,
+  passed_both: 3,
+  to_president: 4,
+  enacted: 5,
+};
+
 const PROGRESS_STAGE_SET: Set<string> = new Set(PROGRESS_STAGES);
 
 export function toProgressStage(value: string | null | undefined): ProgressStage | null {
@@ -24,6 +33,11 @@ export function toProgressStage(value: string | null | undefined): ProgressStage
     return value as ProgressStage;
   }
   return null;
+}
+
+export function getProgressStageRank(value: string | null | undefined): number {
+  const stage = toProgressStage(value);
+  return stage ? PROGRESS_STAGE_RANK[stage] : PROGRESS_STAGE_RANK.introduced;
 }
 
 export interface CongressSummary {
