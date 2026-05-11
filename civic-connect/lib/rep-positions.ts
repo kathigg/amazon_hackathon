@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "./prisma";
 import { type ChamberFocus } from "./legislative";
+import { sanitizeRepresentativeReasoning } from "./representative-reasoning";
 
 export type PositionStance =
   | "strong_support"
@@ -67,7 +68,7 @@ export async function listBillRepresentativePositions({
         websiteUrl: representative.websiteUrl,
         stance,
         confidence: stanceRecord?.confidence ?? 0,
-        reasoning: trimReasoning(stanceRecord?.reasoning),
+        reasoning: sanitizeRepresentativeReasoning(stanceRecord?.reasoning),
         source: stanceRecord?.source ?? null,
         isPreferred: preferredRepBioguideIds.includes(
           representative.bioguideId
@@ -133,24 +134,7 @@ const getCachedRepresentativePositions = unstable_cache(
 );
 
 export function trimReasoning(reasoning?: string | null) {
-  if (!reasoning) {
-    return null;
-  }
-
-  const normalized = reasoning.replace(/\s+/g, " ").trim();
-  if (!normalized) {
-    return null;
-  }
-
-  const sentences = normalized.match(/[^.!?]+[.!?]?/g)?.map((sentence) =>
-    sentence.trim()
-  );
-
-  if (!sentences || sentences.length === 0) {
-    return normalized.slice(0, 220);
-  }
-
-  return sentences.slice(0, 2).join(" ").slice(0, 240);
+  return sanitizeRepresentativeReasoning(reasoning);
 }
 
 export function getStanceDisplayLabel(stance: PositionStance) {

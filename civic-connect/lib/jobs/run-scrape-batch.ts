@@ -87,7 +87,8 @@ export async function runRepresentativeScrapeBatch(
           const analysis = await analyzeStance(
             `${rep.firstName} ${rep.lastName}`,
             bill.title,
-            content
+            content,
+            rep.websiteUrl
           );
 
           if (analysis.confidence > STANCE_CONFIDENCE_THRESHOLD) {
@@ -102,7 +103,7 @@ export async function runRepresentativeScrapeBatch(
                 stance: analysis.stance,
                 confidence: analysis.confidence,
                 reasoning: analysis.reasoning,
-                source: "scraped",
+                source: "official_public_record",
               },
               create: {
                 repId: rep.id,
@@ -110,7 +111,7 @@ export async function runRepresentativeScrapeBatch(
                 stance: analysis.stance,
                 confidence: analysis.confidence,
                 reasoning: analysis.reasoning,
-                source: "scraped",
+                source: "official_public_record",
               },
             });
 

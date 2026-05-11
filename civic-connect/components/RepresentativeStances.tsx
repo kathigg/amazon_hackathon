@@ -271,13 +271,22 @@ function RepresentativeCard({
           href={position.websiteUrl}
           target="_blank"
           rel="noreferrer"
+          aria-label={`${getSourceLinkLabel(position)} for ${position.name}`}
           className={`mt-4 inline-flex text-[11px] font-semibold uppercase tracking-[0.18em] ${
             emphasize ? "text-white" : "text-civic-blue"
           }`}
         >
-          Contact via official website
+          {getSourceLinkLabel(position)}
         </a>
       )}
     </div>
   );
+}
+
+function getSourceLinkLabel(position: BillRepresentativePosition) {
+  if (position.stance === "strong_support") {
+    return "View official source";
+  }
+
+  return "Official website";
 }

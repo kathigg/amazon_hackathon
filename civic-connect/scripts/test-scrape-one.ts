@@ -56,7 +56,8 @@ async function testScrapeOne() {
     const analysis = await analyzeStance(
       `${rep.firstName} ${rep.lastName}`,
       bill.title,
-      content
+      content,
+      rep.websiteUrl
     );
 
     console.log("\n📊 Analysis Result:");
@@ -78,7 +79,7 @@ async function testScrapeOne() {
           stance: analysis.stance,
           confidence: analysis.confidence,
           reasoning: analysis.reasoning,
-          source: "scraped",
+          source: "official_public_record",
         },
         create: {
           repId: rep.id,
@@ -86,7 +87,7 @@ async function testScrapeOne() {
           stance: analysis.stance,
           confidence: analysis.confidence,
           reasoning: analysis.reasoning,
-          source: "scraped",
+          source: "official_public_record",
         },
       });
       console.log("✓ Stored successfully\n");
