@@ -30,7 +30,7 @@ S3/CloudFront image-pool setup is covered in **§3** below. It runs once after �
 Quick punch list from the recent commits — read before deploying so you know what to expect after rollout:
 
 - **Schema:** new `Bill` columns (`progressStage`, `stageReachedAt`, `latestActionText`, `lastSyncedAt`, `legislativeSubjects`, `imageAssetId`, generated `search_vector` tsvector) + a new `BillImageAsset` table + new indexes. `prisma db push` is required.
-- **Postgres FTS:** the `search_vector` column is populated by a trigger defined in `civic-connect/prisma/sql/bill_search_vector.sql` and is **not** created by `prisma db push`. `npm run setup:search` applies it.
+- **Postgres FTS:** `prisma db push` creates a plain nullable `tsvector` column from the schema; `civic-connect/prisma/sql/bill_search_vector.sql` replaces it with a `GENERATED ALWAYS AS ... STORED` column (title weight A + sponsor weight B) plus the GIN index. Run `npm run setup:search` after every `prisma db push` — skipping it leaves `search_vector` NULL on every row and `/bills?q=…` silently returns zero results.
 - **Bedrock structured output:** `lib/bedrock-structured.ts` now has a native-output path for Claude 4.5+ alongside the existing tool-use coercion. No env change needed; the dispatcher is family-prefix based.
 - **Bill ingestion:** the date-corruption guard refuses placeholder `now()` fallbacks; `progressStage` is computed on ingest from Congress.gov action/summary feeds. Run `npm run backfill:progress` once after schema push if you skip the DB replace step.
 - **Image pool:** code reads from `BillImageAsset` first and falls back to legacy `Bill.imageUrl` if no asset is assigned. Safe to deploy without seeding the pool.

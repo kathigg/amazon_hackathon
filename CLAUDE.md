@@ -17,23 +17,37 @@ Authoritative docs (read in this order before non-trivial changes):
 
 Treat `LLM_CONTEXT.md` and `PROJECT_HANDOFF.md` as the source of truth for production assumptions. The top-level `README.md`, `.kiro/steering/*.md`, and `AWS_BEDROCK_SETUP.md` predate the AWS migration and contain stale references to Vercel and Google Gemini — see the "Stale doc warnings" section below.
 
+Operational runbooks at the repo root (not in `civic-connect/`):
+
+- `AWS_ONBOARDING.md` — day-one teammate runbook: AWS access, named resources, first-deploy walkthrough.
+- `AWS_LOCAL_DB_MIRROR.md` — pull a real prod DB dump via temporary SSM bastion, point `npm run dev` at it, diff repo against the running prod image.
+- `AWS_PROD_REDEPLOY.md` — push recent code to ECS (build → ECR → schema migrate → service update) and destructively replace the prod DB from the local `civic-mirror-db` container.
+
 ## Common commands
 
 All from inside `civic-connect/`:
 
 ```bash
-npm run dev              # start Next.js dev server (localhost:3000)
-npm run build            # prisma generate + next build (must pass before deploys)
-npm run lint             # next lint
-npx prisma db push       # sync schema (no migration history)
-npm run ingest           # pull bills from Congress.gov + generate Bedrock summaries
-npm run seed:orgs        # load advocacy orgs
-npm run seed:reps        # load representative directory
+npm run dev                  # start Next.js dev server (localhost:3000)
+npm run build                # prisma generate + next build (must pass before deploys)
+npm run lint                 # next lint
+npx prisma db push           # sync schema (no migration history)
+npm run setup:search         # apply prisma/sql/bill_search_vector.sql (Postgres FTS column + trigger)
+npm run ingest               # pull bills from Congress.gov + generate Bedrock summaries
+npm run seed:orgs            # load advocacy orgs
+npm run seed:reps            # load representative directory
 npm run backfill:dates       # repair Bill.introducedAt
 npm run backfill:taxonomy    # backfill LoC policy areas
+npm run backfill:progress    # backfill Bill.progressStage from latestActionText
+npm run backfill:summaries   # regenerate missing/placeholder Bedrock summaries
 npm run enrich:tags          # LLM topic-tag enrichment
-npm run test:db          # smoke-test DATABASE_URL connectivity
-npm run test:keys        # smoke-test external API keys
+npm run discover:subjects    # discover legislativeSubjects → image-pool category keys
+npm run curate:images        # populate BillImageAsset pool (Wikimedia Commons + Openverse → S3)
+npm run backfill:bill-images # assign curated BillImageAsset to existing bills
+npm run regenerate:images    # regenerate Bill.imageUrl deterministic fallbacks
+npm run backfill:images      # legacy: backfill Bill.imageUrl directly
+npm run test:db              # smoke-test DATABASE_URL connectivity
+npm run test:keys            # smoke-test external API keys
 ```
 
 There is no test runner configured — validation is build + manual verification (see "Validation baseline" below).
@@ -48,7 +62,7 @@ docker compose up --build    # from civic-connect/
 
 Run the actual prod ECR image against a local Postgres, with prod secrets pulled from Secrets Manager. Use this to reproduce prod-only bugs without touching the live cluster. Two long-running containers, no compose (the host may not have `docker compose` v2):
 
-- `civic-mirror-db` — `postgres:16-alpine`, host port **5433**, ephemeral (no volume mount).
+- `civic-mirror-db` — `postgres:17-alpine`, host port **5433**, ephemeral (no volume mount). Must match Aurora's major version (17) — PG16 cannot read a custom-format dump produced by a PG17 client.
 - `civic-mirror-app` — exact prod ECR image, host port **3001** (avoids clashing with `npm run dev` on 3000).
 - Both attached to docker network `civic-mirror`.
 - App env loaded from `civic-connect/.env.prod-mirror` (gitignored).
@@ -79,16 +93,16 @@ Run the actual prod ECR image against a local Postgres, with prod secrets pulled
 docker network create civic-mirror
 docker run -d --name civic-mirror-db --network civic-mirror \
   -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=civicconnect \
-  -p 5433:5432 postgres:16-alpine
+  -p 5433:5432 postgres:17-alpine
 until docker exec civic-mirror-db pg_isready -U postgres -q; do sleep 1; done
 docker run -d --name civic-mirror-app --network civic-mirror \
   -p 3001:3000 --env-file civic-connect/.env.prod-mirror \
   --entrypoint sh \
   712589718735.dkr.ecr.us-east-1.amazonaws.com/civic-connect-web:<tag> \
-  -c "npx prisma db push --skip-generate --accept-data-loss && (npm run ingest || true) && exec node server.js"
+  -c "npx prisma db push --skip-generate --accept-data-loss && npm run setup:search && (npm run ingest || true) && exec node server.js"
 ```
 
-The prod image's CMD is just `node server.js` — it does **not** run `prisma db push` or `npm run ingest`. The entrypoint override bootstraps both on first boot, so the homepage and `/bills` are non-empty.
+The prod image's CMD is just `node server.js` — it does **not** run `prisma db push`, `npm run setup:search`, or `npm run ingest`. The entrypoint override bootstraps all three on first boot, so the homepage, `/bills`, and bill search are non-empty. `setup:search` is required: `prisma db push` only creates a plain nullable `tsvector` column, so without `setup:search` the `search_vector` is `NULL` on every row and `/bills?q=…` silently returns zero results.
 
 ### Check the database
 
@@ -123,7 +137,7 @@ docker network rm civic-mirror
 - Bedrock and Congress.gov calls hit real upstream services — Bedrock means real billing.
 - SES is intentionally unset; no email will actually send.
 - Local DB is ephemeral; every tear-down drops all rows.
-- This mirror has zero production user data (no `User`, `BillView`, `EmailDigestLog` rows). It mocks shape, not history.
+- The boot flow above seeds the mirror with `prisma db push` + `npm run ingest` — synthetic data, **no real users**. To get real prod rows (Bills, Reps, Users, Sessions, etc.), see `AWS_LOCAL_DB_MIRROR.md` at the repo root, which covers (1) dumping prod via a temporary SSM bastion, (2) wiring `npm run dev` to the dump, and (3) diffing local source against the running prod image.
 
 ## Production runtime (do NOT assume Vercel)
 
@@ -158,7 +172,7 @@ app/
     ingest/                     bill ingestion endpoint (x-ingest-secret header required)
     account/digests/            hourly digest dispatcher (welcome + daily/weekly briefs)
     scrape/representatives/     incremental rep stance scraping
-    bills/, orgs/, reps/, events/, home-feed/, bill-image/, analytics/, health/, test/
+    bills/, orgs/, reps/, events/, bill-image/, analytics/, health/, test/
 components/                     UI primitives (IssueCard, StanceCard, ActionCard, etc.)
 lib/
   prisma.ts                     singleton Prisma client — all DB access goes through this
@@ -167,9 +181,17 @@ lib/
   aws-bedrock.ts                Bedrock stance analysis (Converse API)
   bedrock-structured.ts         shared Bedrock structured-output helper
   bill-feed.ts                  hot/latest ranking and feed selection
+  bill-search.ts                Postgres FTS query parser + ranker (backed by search_vector)
+  bill-progress.ts              ProgressStage enum + latestActionText → stage classifier
   bill-ingestion.ts             ingest update logic + guardrails (date corruption hazard)
-  bill-image-categories.ts      deterministic hash(billId+category) -> image URL
-  topic-image-pool.ts           pool of real-world images keyed by category
+  bill-image-categories.ts      deterministic hash(billId+category) → fallback image URL
+  topic-image-pool.ts           static fallback pool keyed by topic category
+  image-pool.ts                 BillImageAsset selection: build category keys, deterministic pick from curated DB pool
+  image-pool-read.ts            request-path read helpers for the curated pool
+  openverse.ts                  Openverse image search client (CC0/PDM-filtered)
+  wikimedia-commons.ts          Wikimedia Commons image search client (CC0/PDM-filtered)
+  legislative.ts                progress-stage helpers shared by feed + bill page UI
+  breaking-bills.ts             "breaking" detection (Bill.breakingAt) for the home feed
   rep-positions.ts              representative stance reads
   account-digests.ts            digest selection + render
   scraper.ts                    rep website scraping
@@ -183,11 +205,14 @@ legacy-next-static/             baked-in static assets carried into the Docker i
 Key data model relationships:
 
 - `Bill` 1—1 `Summary`, 1—N `Stance`, 1—N `Feedback`
+- `Bill` N—1 `BillImageAsset` (curated, license-clean image pool keyed by `categoryKey` like `loc-area/Health` or `loc-subject/Medicare`; backed by S3 + CloudFront)
 - `Representative` 1—N `RepStance` (unique on `[repId, billId]`)
 - `User` (cookie-based, optional email) 1—N `Session`, `BillView`, `EmailDigestLog`
 - `ZipDistrict` is the local ZIP→state+district lookup table
 
 Bill IDs use the format `{type}-{number}-{congress}` (e.g. `hr-1234-119`).
+
+`Bill.progressStage` tracks legislative progress as one of: `introduced`, `committee`, `passed_origin`, `passed_both`, `to_president`, `enacted` (see `lib/bill-progress.ts`). Backfill via `npm run backfill:progress`. Postgres FTS over title/sponsor lives in the generated `search_vector` column — install with `npm run setup:search` after `prisma db push`.
 
 ## Code conventions
 
@@ -199,7 +224,7 @@ Bill IDs use the format `{type}-{number}-{congress}` (e.g. `hr-1234-119`).
 - **Styling**: Tailwind utilities only, no inline styles. Custom design tokens: `navy`, `cream`, `civic-red`, `civic-blue`, `civic-gold`.
 - **Nonpartisanship**: AI summarization prompts must explicitly enforce neutral language. Stance cards show vote counts only — no editorial framing. Always show the official bill title alongside the AI summary.
 - **Bill summaries** are pre-generated at ingest time and stored in `Summary`. Do not call the LLM at request time. The `whyItMatters` field is a single string with two labeled sections (`WHY THIS MATTERS:` / `WHO THIS AFFECTS:`) split by `lib/bill-summary.ts:splitWhyAndWho`.
-- **Images**: real-world only, no AI-generated bill art, no portraits. Selection is deterministic via `hash(billId + category)`. Persist to `Bill.imageUrl`; runtime prefers DB value with deterministic fallback. Don't fetch or generate images at request time.
+- **Images**: real-world only, no AI-generated bill art, no portraits. The current system is a curated pool: `npm run curate:images` populates `BillImageAsset` from Wikimedia Commons + Openverse (CC0/PDM only — strict license filtering at the source) into S3, served via CloudFront. `npm run backfill:bill-images` then assigns one to each `Bill` deterministically (`hash(billId + categoryKey)` over the bill's policy areas + legislative subjects). Runtime read order: `Bill.imageAsset.cdnUrl` → legacy `Bill.imageUrl` → static topic-pool fallback. Don't fetch, generate, or upload images at request time.
 
 ## High-risk areas
 
