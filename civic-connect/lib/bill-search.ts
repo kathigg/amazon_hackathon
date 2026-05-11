@@ -88,7 +88,7 @@ async function rankedSearchIds({
     WHERE (${idMatch} OR "search_vector" @@ plainto_tsquery('english', ${q}))
       ${topicClause}
     ORDER BY
-      (${idMatch}) DESC,
+      (CASE WHEN ${idMatch} THEN 1 ELSE 0 END) DESC,
       ts_rank_cd("search_vector", plainto_tsquery('english', ${q})) DESC,
       "introducedAt" DESC
     LIMIT ${take} OFFSET ${skip}
