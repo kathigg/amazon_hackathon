@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { parseTerm } from "./taxonomy";
+import { cosine } from "./embeddings";
 
 const SUBJECT_PREFIX = "loc-subject/";
 const AREA_PREFIX = "loc-area/";
@@ -55,12 +56,21 @@ export interface AssetSelection {
 // delegate, so every read returns [] and every write is a no-op. That keeps the
 // existing render path (Wikimedia hotlinks via getBillImageRecord) working
 // until curation has been run.
+interface AssetCandidate extends AssetSelection {
+  embedding: number[];
+}
+
 type BillImageAssetDelegate = {
   findMany: (args: {
     where: { categoryKey: string; retiredAt: null };
-    select: { id: true; cdnUrl: true; categoryKey: true };
+    select: {
+      id: true;
+      cdnUrl: true;
+      categoryKey: true;
+      embedding: true;
+    };
     orderBy: { id: "asc" };
-  }) => Promise<AssetSelection[]>;
+  }) => Promise<AssetCandidate[]>;
 };
 
 type BillUpdateDelegate = {
@@ -68,6 +78,13 @@ type BillUpdateDelegate = {
     where: { id: string };
     data: { imageAssetId: string };
   }) => Promise<unknown>;
+};
+
+type BillReaderDelegate = {
+  findUnique: (args: {
+    where: { id: string };
+    select: { topicEmbedding: true };
+  }) => Promise<{ topicEmbedding: number[] } | null>;
 };
 
 function getBillImageAssetDelegate(): BillImageAssetDelegate | null {
@@ -81,9 +98,66 @@ function getBillUpdater(): BillUpdateDelegate {
   return prisma.bill as unknown as BillUpdateDelegate;
 }
 
+function getBillReader(): BillReaderDelegate {
+  return prisma.bill as unknown as BillReaderDelegate;
+}
+
+async function fetchBillTopicEmbedding(billId: string): Promise<number[]> {
+  try {
+    const bill = await getBillReader().findUnique({
+      where: { id: billId },
+      select: { topicEmbedding: true },
+    });
+    return bill?.topicEmbedding ?? [];
+  } catch {
+    // Schema may not yet have topicEmbedding; degrade to empty.
+    return [];
+  }
+}
+
+function pickDeterministic(
+  billId: string,
+  key: string,
+  pool: AssetCandidate[]
+): AssetSelection {
+  const index = hashString(`${billId}::${key}`) % pool.length;
+  return toSelection(pool[index]);
+}
+
+function pickByCosine(
+  billEmbedding: number[],
+  pool: AssetCandidate[]
+): AssetSelection | null {
+  let best: AssetCandidate | null = null;
+  let bestScore = -Infinity;
+  for (const candidate of pool) {
+    if (candidate.embedding.length === 0) continue;
+    const score = cosine(billEmbedding, candidate.embedding);
+    if (score > bestScore) {
+      bestScore = score;
+      best = candidate;
+    }
+  }
+  return best ? toSelection(best) : null;
+}
+
+function toSelection(candidate: AssetCandidate): AssetSelection {
+  return {
+    id: candidate.id,
+    cdnUrl: candidate.cdnUrl,
+    categoryKey: candidate.categoryKey,
+  };
+}
+
 /**
- * Pick a deterministic asset for a bill, trying each provided category key in
- * order. Returns null if none of the keys has any live asset.
+ * Pick an asset for a bill, trying each provided category key in order.
+ *
+ * When the bill has a topicEmbedding AND at least one candidate in the cell
+ * has an embedding, picks argmax(cosine). Otherwise falls back to a stable
+ * deterministic hash. Both code paths are preserved so a partial-embedding
+ * state still works (e.g. before the one-time embed pass has run).
+ *
+ * Returns null if none of the keys has any live asset.
  */
 export async function selectAssetForBill(
   billId: string,
@@ -92,10 +166,13 @@ export async function selectAssetForBill(
   const delegate = getBillImageAssetDelegate();
   if (!delegate) return null;
 
+  const billEmbedding = await fetchBillTopicEmbedding(billId);
+  const useCosine = billEmbedding.length > 0;
+
   for (const key of categoryKeys) {
     const pool = await delegate.findMany({
       where: { categoryKey: key, retiredAt: null },
-      select: { id: true, cdnUrl: true, categoryKey: true },
+      select: { id: true, cdnUrl: true, categoryKey: true, embedding: true },
       orderBy: { id: "asc" },
     });
 
@@ -103,8 +180,12 @@ export async function selectAssetForBill(
       continue;
     }
 
-    const index = hashString(`${billId}::${key}`) % pool.length;
-    return pool[index];
+    if (useCosine) {
+      const cosinePick = pickByCosine(billEmbedding, pool);
+      if (cosinePick) return cosinePick;
+    }
+
+    return pickDeterministic(billId, key, pool);
   }
 
   return null;

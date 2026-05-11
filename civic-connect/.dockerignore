@@ -16,3 +16,6 @@ coverage
 *.pem
 *.key
 *.crt
+
+public/curated-images
+.local-dumps

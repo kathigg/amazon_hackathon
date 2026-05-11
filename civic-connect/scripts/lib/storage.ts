@@ -17,6 +17,7 @@ import { existsSync } from "node:fs";
 
 export interface Storage {
   putImage(key: string, bytes: Uint8Array, contentType: string): Promise<void>;
+  getImage(key: string): Promise<Buffer>;
   objectExists(key: string): Promise<boolean>;
   buildPublicUrl(key: string): string;
   describe(): string;
@@ -68,6 +69,9 @@ async function createLocalStorage(localDir: string): Promise<Storage> {
       await fs.mkdir(path.dirname(target), { recursive: true });
       await fs.writeFile(target, bytes);
     },
+    async getImage(key) {
+      return fs.readFile(path.join(absDir, key));
+    },
     async objectExists(key) {
       return existsSync(path.join(absDir, key));
     },
@@ -84,6 +88,7 @@ async function createS3Storage(): Promise<Storage> {
   const aws = await import("./aws-s3");
   return {
     putImage: aws.putImage,
+    getImage: aws.getImage,
     objectExists: aws.objectExists,
     buildPublicUrl: aws.buildCdnUrl,
     describe: () =>

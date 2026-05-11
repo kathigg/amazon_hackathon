@@ -65,11 +65,9 @@ function isTrustedStoredImage(imageUrl?: string | null): imageUrl is string {
     return true;
   }
 
-  // Prefer an exact prefix match against the configured CDN host, when set,
-  // so a future Wikimedia or rogue cloudfront.net URL never sneaks through.
   const configuredHost = process.env.IMAGE_CDN_HOST?.replace(/\/+$/, "");
-  if (configuredHost && imageUrl.startsWith(`${configuredHost}/`)) {
-    return true;
+  if (configuredHost) {
+    return imageUrl.startsWith(`${configuredHost}/`);
   }
 
   return imageUrl.includes("amazonaws.com/") || imageUrl.includes("cloudfront.net/");

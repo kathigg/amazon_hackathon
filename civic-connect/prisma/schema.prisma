@@ -40,6 +40,8 @@ model Bill {
   stageReachedAt   DateTime?
   latestActionText String?
   lastSyncedAt     DateTime?
+  topicEmbedding   Float[]   @default([])
+  topicEmbeddedAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -80,6 +82,8 @@ model BillImageAsset {
   licenseVersion  String?
   searchQuery     String                       // the query that found it
   retiredAt       DateTime?                    // soft-delete; null = live
+  embedding       Float[]   @default([])       // Bedrock Titan Multimodal G1 v1, 1024 dims
+  embeddedAt      DateTime?
   createdAt       DateTime  @default(now())
 
   bills           Bill[]    @relation("BillImage")

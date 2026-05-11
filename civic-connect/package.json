@@ -17,6 +17,7 @@
     "backfill:images": "tsx scripts/backfill-bill-images.ts",
     "curate:images": "tsx scripts/curate-images.ts",
     "backfill:bill-images": "tsx scripts/backfill-bill-image-assets.ts",
+    "embed:images": "tsx scripts/embed-image-pool.ts",
     "discover:subjects": "tsx scripts/discover-subjects.ts",
     "backfill:dates": "tsx scripts/backfill-introduced-dates.ts",
     "backfill:progress": "tsx scripts/backfill-progress.ts",

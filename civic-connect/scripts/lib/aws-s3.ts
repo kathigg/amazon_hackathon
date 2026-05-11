@@ -1,4 +1,5 @@
 import {
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -68,4 +69,21 @@ export async function putImage(
       CacheControl: "public, max-age=31536000, immutable",
     })
   );
+}
+
+export async function getImage(storageKey: string): Promise<Buffer> {
+  const response = await getS3Client().send(
+    new GetObjectCommand({
+      Bucket: getImageBucket(),
+      Key: storageKey,
+    })
+  );
+  if (!response.Body) {
+    throw new Error(`S3 GetObject returned no body for ${storageKey}`);
+  }
+  const chunks: Buffer[] = [];
+  for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
 }

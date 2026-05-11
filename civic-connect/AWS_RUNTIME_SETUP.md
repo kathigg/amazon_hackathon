@@ -77,9 +77,13 @@ CRON_SECRET
 APP_BASE_URL
 SES_FROM_EMAIL
 SES_REPLY_TO
+IMAGE_S3_BUCKET
+IMAGE_CDN_HOST
 ```
 
 Store these in AWS Secrets Manager or the ECS/Lambda secret wiring, not just in local files.
+
+`IMAGE_S3_BUCKET` and `IMAGE_CDN_HOST` are non-secret and can live as plain ECS task-definition environment variables (no Secrets Manager entry required). They name the bucket holding the curated bill-image pool and the CloudFront origin that fronts it. See `AWS_PROD_REDEPLOY.md` §3 for first-time provisioning. If they are unset at runtime, the app falls back to legacy `Bill.imageUrl` / static topic-pool URLs without error.
 
 ## Database rules
 

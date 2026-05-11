@@ -65,9 +65,18 @@ function isTrustedStoredImage(imageUrl?: string | null): imageUrl is string {
     return false;
   }
 
-  return (
-    imageUrl.startsWith("/topic-images/") ||
-    imageUrl.includes("amazonaws.com/") ||
-    imageUrl.includes("cloudfront.net/")
-  );
+  if (imageUrl.startsWith("/topic-images/")) {
+    return true;
+  }
+
+  try {
+    const url = new URL(imageUrl);
+    if (url.protocol !== "https:") return false;
+    return (
+      url.hostname.endsWith(".cloudfront.net") ||
+      url.hostname.endsWith(".amazonaws.com")
+    );
+  } catch {
+    return false;
+  }
 }

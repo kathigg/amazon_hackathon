@@ -11,6 +11,7 @@ import { isMajorBillAction } from "./breaking-bills";
 import { parseCongressDate, parseCongressDateTime } from "./bill-dates";
 import { classifyBillProgress, type ProgressStage } from "./bill-progress";
 import { assignBillImageAsset } from "./image-pool";
+import { embedText } from "./embeddings";
 
 export const BILL_METADATA_INGEST_LIMIT = 100;
 
@@ -133,12 +134,68 @@ export async function upsertBillMetadataFromCongress(
   });
 
   await persistLegislativeSubjects(billId, detail?.subjects ?? []);
+  await ensureTopicEmbedding(billId, bill.title, detail?.subjects ?? []);
   await assignBillImageAsset(billId, topicTags, detail?.subjects ?? []);
 
   return {
     billId,
     breakingTriggered: stageChanged || (Boolean(statusChanged) && isMajorBillAction(status)),
   };
+}
+
+/**
+ * Compute and persist Bill.topicEmbedding if missing. Fail-soft: a Bedrock
+ * outage or a pre-migration schema both leave the row without an embedding,
+ * which makes selectAssetForBill fall back to deterministic hash selection.
+ */
+async function ensureTopicEmbedding(
+  billId: string,
+  title: string,
+  subjects: string[]
+): Promise<void> {
+  const reader = prisma.bill as unknown as {
+    findUnique: (args: {
+      where: { id: string };
+      select: { topicEmbedding: true };
+    }) => Promise<{ topicEmbedding: number[] } | null>;
+  };
+  let existing: { topicEmbedding: number[] } | null;
+  try {
+    existing = await reader.findUnique({
+      where: { id: billId },
+      select: { topicEmbedding: true },
+    });
+  } catch {
+    return; // pre-migration column missing
+  }
+  if (existing && existing.topicEmbedding.length > 0) return;
+
+  const corpus = [title, ...subjects].filter(Boolean).join(" ").trim();
+  if (!corpus) return;
+
+  let embedding: number[];
+  try {
+    embedding = await embedText(corpus);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[ingest] embed skip ${billId}: ${message}`);
+    return;
+  }
+
+  try {
+    await (
+      prisma.bill.update as unknown as (args: {
+        where: { id: string };
+        data: { topicEmbedding: number[]; topicEmbeddedAt: Date };
+      }) => Promise<unknown>
+    )({
+      where: { id: billId },
+      data: { topicEmbedding: embedding, topicEmbeddedAt: new Date() },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/topicEmbedding|topicEmbeddedAt/i.test(message)) throw error;
+  }
 }
 
 /**
