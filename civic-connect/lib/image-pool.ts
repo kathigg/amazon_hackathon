@@ -87,6 +87,16 @@ type BillReaderDelegate = {
   }) => Promise<{ topicEmbedding: number[] } | null>;
 };
 
+type BillUsedAssetReaderDelegate = {
+  findMany: (args: {
+    where: {
+      imageAssetId: { not: null };
+      NOT: { id: string };
+    };
+    select: { imageAssetId: true };
+  }) => Promise<{ imageAssetId: string | null }[]>;
+};
+
 function getBillImageAssetDelegate(): BillImageAssetDelegate | null {
   return (
     (prisma as unknown as { billImageAsset?: BillImageAssetDelegate })
@@ -102,6 +112,10 @@ function getBillReader(): BillReaderDelegate {
   return prisma.bill as unknown as BillReaderDelegate;
 }
 
+function getBillUsedAssetReader(): BillUsedAssetReaderDelegate {
+  return prisma.bill as unknown as BillUsedAssetReaderDelegate;
+}
+
 async function fetchBillTopicEmbedding(billId: string): Promise<number[]> {
   try {
     const bill = await getBillReader().findUnique({
@@ -112,6 +126,22 @@ async function fetchBillTopicEmbedding(billId: string): Promise<number[]> {
   } catch {
     // Schema may not yet have topicEmbedding; degrade to empty.
     return [];
+  }
+}
+
+async function fetchUsedAssetIds(excludeBillId: string): Promise<Set<string>> {
+  try {
+    const rows = await getBillUsedAssetReader().findMany({
+      where: { imageAssetId: { not: null }, NOT: { id: excludeBillId } },
+      select: { imageAssetId: true },
+    });
+    const used = new Set<string>();
+    for (const row of rows) {
+      if (row.imageAssetId) used.add(row.imageAssetId);
+    }
+    return used;
+  } catch {
+    return new Set();
   }
 }
 
@@ -187,6 +217,7 @@ export async function selectAssetForBill(
 
   const billEmbedding = await fetchBillTopicEmbedding(billId);
   const useCosine = billEmbedding.length > 0;
+  const usedIds = await fetchUsedAssetIds(billId);
 
   for (const key of categoryKeys) {
     const pool = await delegate.findMany({
@@ -199,12 +230,18 @@ export async function selectAssetForBill(
       continue;
     }
 
+    // Prefer assets not already claimed by another bill. If the category is
+    // exhausted (every asset claimed), fall back to the full pool — better a
+    // duplicate image than no image. Bulk reassign restores 1-to-1 globally.
+    const free = pool.filter((asset) => !usedIds.has(asset.id));
+    const candidates = free.length > 0 ? free : pool;
+
     if (useCosine) {
-      const cosinePick = pickByCosine(billEmbedding, pool);
+      const cosinePick = pickByCosine(billEmbedding, candidates);
       if (cosinePick) return cosinePick;
     }
 
-    return pickDeterministic(billId, key, pool);
+    return pickDeterministic(billId, key, candidates);
   }
 
   return null;
