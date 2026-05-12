@@ -6,6 +6,7 @@ import ClientErrorBoundary from "@/components/ClientErrorBoundary";
 import BillFeedCard from "@/components/BillFeedCard";
 import BillIssueVisual from "@/components/BillIssueVisual";
 import HomeFeedMemory from "@/components/HomeFeedMemory";
+import HomeAccountPrompt from "@/components/HomeAccountPrompt";
 import MilestonePill from "@/components/MilestonePill";
 import { getActiveTaxonomy } from "@/lib/taxonomy";
 import {
@@ -79,6 +80,7 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen">
       <HomeFeedMemory billIds={bills.map((bill) => bill.id)} />
+      <HomeAccountPrompt />
       <section className="border-b border-black/10">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/50 sm:px-6 lg:px-8">
           <span>Front Page</span>
