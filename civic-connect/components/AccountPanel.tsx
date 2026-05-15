@@ -10,9 +10,9 @@ import {
   type AccountInterestSelection,
 } from "@/lib/account-interests";
 import {
-  DEFAULT_EMAIL_SUBSCRIPTIONS,
   EMAIL_SUBSCRIPTION_OPTIONS,
   getInitialEmailSubscriptions,
+  getSelectedEmailOption,
   sanitizeEmailSubscriptions,
   type EmailSubscription,
 } from "@/lib/email-preferences";
@@ -94,14 +94,8 @@ export default function AccountPanel({
     );
   }
 
-  function toggleSubscription(subscriptionId: EmailSubscription) {
-    setSubscriptions((current) => {
-      const next = current.includes(subscriptionId)
-        ? current.filter((value) => value !== subscriptionId)
-        : [...current, subscriptionId];
-
-      return sanitizeEmailSubscriptions(next);
-    });
+  function selectSubscription(subscriptionId: EmailSubscription) {
+    setSubscriptions(sanitizeEmailSubscriptions([subscriptionId]));
   }
 
   function togglePreferredRep(repId: string) {
@@ -338,12 +332,12 @@ export default function AccountPanel({
               </label>
             </div>
             <p className="mt-3 text-sm leading-7 text-navy/68">
-              Weekly is on by default. The next-morning briefing goes out at 9am in your local time zone after sign-up.
+              Choose whether you want no bill updates, a weekly briefing, or a daily 9am local-time briefing.
             </p>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
               {EMAIL_SUBSCRIPTION_OPTIONS.map((option) => {
-                const checked = subscriptions.includes(option.id);
+                const checked = getSelectedEmailOption(subscriptions) === option.id;
 
                 return (
                   <label
@@ -359,9 +353,10 @@ export default function AccountPanel({
                         {option.label}
                       </span>
                       <input
-                        type="checkbox"
+                        type="radio"
+                        name="emailSubscription"
                         checked={checked}
-                        onChange={() => toggleSubscription(option.id)}
+                        onChange={() => selectSubscription(option.id)}
                         className="h-4 w-4 accent-navy"
                         disabled={isBusy}
                       />

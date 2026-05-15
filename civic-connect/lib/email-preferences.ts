@@ -1,5 +1,10 @@
 export const EMAIL_SUBSCRIPTION_OPTIONS = [
   {
+    id: "never",
+    label: "Never",
+    blurb: "No bill update emails. Your account and representative choices stay saved.",
+  },
+  {
     id: "daily",
     label: "Daily",
     blurb: "A 9am local-time briefing with the bills worth reading today.",
@@ -12,27 +17,32 @@ export const EMAIL_SUBSCRIPTION_OPTIONS = [
 ] as const;
 
 export type EmailSubscription = (typeof EMAIL_SUBSCRIPTION_OPTIONS)[number]["id"];
-export const DEFAULT_EMAIL_SUBSCRIPTIONS: EmailSubscription[] = ["weekly"];
-
-const subscriptionLookup = new Set<EmailSubscription>(
-  EMAIL_SUBSCRIPTION_OPTIONS.map((option) => option.id)
-);
+export type StoredEmailSubscription = Exclude<EmailSubscription, "never">;
+export const DEFAULT_EMAIL_SUBSCRIPTIONS: StoredEmailSubscription[] = ["weekly"];
 
 export function sanitizeEmailSubscriptions(values: readonly string[]) {
-  const selected = new Set<EmailSubscription>();
-
-  for (const value of values) {
-    if (subscriptionLookup.has(value as EmailSubscription)) {
-      selected.add(value as EmailSubscription);
-    }
+  if (values.includes("never")) {
+    return [];
   }
 
-  return Array.from(selected);
+  if (values.includes("daily")) {
+    return ["daily"] satisfies StoredEmailSubscription[];
+  }
+
+  if (values.includes("weekly")) {
+    return ["weekly"] satisfies StoredEmailSubscription[];
+  }
+
+  return [];
 }
 
 export function getInitialEmailSubscriptions(values: readonly string[]) {
+  return sanitizeEmailSubscriptions(values);
+}
+
+export function getSelectedEmailOption(values: readonly string[]): EmailSubscription {
   const selected = sanitizeEmailSubscriptions(values);
-  return selected.length > 0 ? selected : [...DEFAULT_EMAIL_SUBSCRIPTIONS];
+  return selected[0] ?? "never";
 }
 
 export function isValidTimeZone(value: string | null | undefined) {

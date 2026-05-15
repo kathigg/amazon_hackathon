@@ -8,7 +8,13 @@ import {
   sanitizeInterestSelections,
   type AccountInterestSelection,
 } from "@/lib/account-interests";
-import { DEFAULT_EMAIL_SUBSCRIPTIONS } from "@/lib/email-preferences";
+import {
+  DEFAULT_EMAIL_SUBSCRIPTIONS,
+  EMAIL_SUBSCRIPTION_OPTIONS,
+  getSelectedEmailOption,
+  sanitizeEmailSubscriptions,
+  type EmailSubscription,
+} from "@/lib/email-preferences";
 
 const STORAGE_KEY = "civic-home-account-prompt-v1";
 const PROMPT_DELAY_MS = 900;
@@ -36,6 +42,9 @@ export default function HomeAccountPrompt() {
   const [selectedInterests, setSelectedInterests] = useState<
     AccountInterestSelection[]
   >([]);
+  const [subscriptions, setSubscriptions] = useState<string[]>(
+    DEFAULT_EMAIL_SUBSCRIPTIONS
+  );
   const [reps, setReps] = useState<RepOption[]>([]);
   const [stateName, setStateName] = useState("");
   const [selectedRepIds, setSelectedRepIds] = useState<string[]>([]);
@@ -107,6 +116,10 @@ export default function HomeAccountPrompt() {
     );
   }
 
+  function selectSubscription(subscriptionId: EmailSubscription) {
+    setSubscriptions(sanitizeEmailSubscriptions([subscriptionId]));
+  }
+
   async function lookupRepresentatives() {
     if (zipCode.length !== 5) {
       setError("Enter a valid 5-digit ZIP code first.");
@@ -164,7 +177,7 @@ export default function HomeAccountPrompt() {
         body: JSON.stringify({
           email,
           interestSelections: selectedInterests,
-          emailSubscriptions: DEFAULT_EMAIL_SUBSCRIPTIONS,
+          emailSubscriptions: subscriptions,
           timezone,
           zipCode,
           preferredRepBioguideIds: selectedRepIds,
@@ -374,6 +387,48 @@ export default function HomeAccountPrompt() {
                       >
                         {interest.label}
                         {selected && <Check className="h-4 w-4" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.24em] text-navy/55">
+                    Email updates
+                  </label>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-navy/40">
+                    {getSelectedEmailOption(subscriptions)}
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {EMAIL_SUBSCRIPTION_OPTIONS.map((option) => {
+                    const selected =
+                      getSelectedEmailOption(subscriptions) === option.id;
+
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => selectSubscription(option.id)}
+                        disabled={isBusy}
+                        className={`border px-3 py-3 text-left transition-colors ${
+                          selected
+                            ? "border-navy bg-navy text-white"
+                            : "border-black/10 bg-white text-navy hover:border-navy"
+                        }`}
+                      >
+                        <span className="block text-xs font-semibold uppercase tracking-[0.16em]">
+                          {option.label}
+                        </span>
+                        <span
+                          className={`mt-2 block text-xs leading-5 ${
+                            selected ? "text-white/72" : "text-navy/55"
+                          }`}
+                        >
+                          {option.blurb}
+                        </span>
                       </button>
                     );
                   })}

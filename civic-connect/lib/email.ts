@@ -28,6 +28,13 @@ export function isEmailConfigured() {
   return Boolean(getFromEmail());
 }
 
+export function isEmailDeliveryEnabled() {
+  return (
+    process.env.EMAIL_DELIVERY_ENABLED === "true" ||
+    process.env.EMAIL_SEND_MODE === "live"
+  );
+}
+
 function getSesClient() {
   if (!sesClient) {
     sesClient = new SESv2Client({
@@ -45,6 +52,13 @@ export async function sendTransactionalEmail({
   text,
 }: EmailPayload) {
   const from = getFromEmail();
+
+  if (!isEmailDeliveryEnabled()) {
+    console.warn(
+      `Email skipped: delivery is disabled for "${subject}" to ${to}.`
+    );
+    return false;
+  }
 
   if (!from) {
     console.warn("Email skipped: SES_FROM_EMAIL is not configured.");
@@ -97,7 +111,7 @@ export async function sendWelcomeEmail({
   selectedTopics: string[];
 }) {
   const baseUrl = getAppBaseUrl();
-  const subject = "Your CivicConnect desk is ready";
+  const subject = "Welcome to CivicConnect";
   const topicsLine =
     selectedTopics.length > 0
       ? `You’re now following ${selectedTopics.slice(0, 4).join(", ")}${
@@ -109,7 +123,7 @@ export async function sendWelcomeEmail({
     <div style="background:#f6f1e7;padding:32px;font-family:'Libre Franklin',Arial,sans-serif;color:#10243e;">
       <div style="max-width:620px;margin:0 auto;background:#fffdf9;border:1px solid rgba(16,36,62,0.08);padding:40px;">
         <div style="font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(16,36,62,0.55);font-weight:700;">Latest legislation, decoded.</div>
-        <h1 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:46px;line-height:1;margin:18px 0 12px;">Welcome to CivicConnect</h1>
+        <h1 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:46px;line-height:1;margin:18px 0 12px;">Hello from CivicConnect</h1>
         <p style="font-size:16px;line-height:1.8;margin:0 0 18px;">Hi there. Your account is live and your desk is saved.</p>
         <p style="font-size:15px;line-height:1.8;margin:0 0 18px;">${topicsLine}</p>
         <p style="font-size:15px;line-height:1.8;margin:0 0 28px;">Tomorrow morning, and then on your selected schedule, we’ll send a sharp list of bills worth your attention, along with the organizations and representatives tied to them.</p>
@@ -118,7 +132,7 @@ export async function sendWelcomeEmail({
     </div>
   `;
 
-  const text = `Welcome to CivicConnect.
+  const text = `Hello from CivicConnect.
 
 Your account is live and your desk is saved.
 

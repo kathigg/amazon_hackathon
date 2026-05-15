@@ -21,7 +21,27 @@ async function handleDigestDispatch(req: NextRequest) {
   }
 
   try {
-    const stats = await dispatchDueDigestEmails();
+    const dryRun = ["1", "true", "yes"].includes(
+      req.nextUrl.searchParams.get("dryRun")?.toLowerCase() ?? ""
+    );
+    const targetEmail = req.nextUrl.searchParams.get("email") ?? undefined;
+    const force = req.nextUrl.searchParams.get("force");
+    const forceDigestKind =
+      force === "daily" || force === "weekly" || force === "onboarding"
+        ? force
+        : undefined;
+    const nowParam = req.nextUrl.searchParams.get("now");
+    const now = nowParam ? new Date(nowParam) : new Date();
+
+    if (Number.isNaN(now.getTime())) {
+      return NextResponse.json({ error: "Invalid now timestamp." }, { status: 400 });
+    }
+
+    const stats = await dispatchDueDigestEmails(now, {
+      dryRun,
+      targetEmail,
+      forceDigestKind,
+    });
     return NextResponse.json({ ok: true, stats });
   } catch (error) {
     console.error("Digest dispatch failed:", error);
