@@ -1,259 +1,242 @@
 # CivicConnect
 
-> AI-powered U.S. legislative tracker — plain-language bill summaries, party stance comparisons, and civic action tools.
+**Live project:** [https://www.civicconnect.net](https://www.civicconnect.net)
 
-[Watch the demo on YouTube](https://www.youtube.com/watch?v=3E_O_ivngXE)
+CivicConnect is a free legislative tracking and grassroots advocacy platform that translates active U.S. federal legislation into plain-language, card-based summaries. It is built for people who want to understand what Congress is doing without needing to read dense statutory text, pay for lobbyist-oriented tools, or know where to look across disconnected government websites.
 
----
+The application combines official bill metadata, AI-generated summaries, representative stance tracking, advocacy organization matching, ZIP-based representative lookup, saved user preferences, and scheduled email briefings.
 
-## Table of Contents
+## What The Project Does
 
-1. [Project Overview](#project-overview)
-2. [Design Decisions](#design-decisions)
-3. [How Kiro Was Used](#how-kiro-was-used)
-4. [Learning Journey & Forward Thinking](#learning-journey--forward-thinking)
-5. [Setup & Running](#setup--running)
-6. [Deployment](#deployment-vercel)
-7. [Data Sources](#data-sources)
-8. [References](#references)
+CivicConnect helps users:
 
----
+- Browse recent and high-salience federal bills in a card-based feed.
+- Open a bill page with the official title, sponsor, dates, legislative status, and progress tracker.
+- Read a plain-language AI summary, key provisions, “why this matters,” and “who this affects.”
+- Compare representative and party positions through the Auto-Whip interface.
+- Find advocacy organizations connected to the topics in a bill.
+- Select their senators and House representative by ZIP code.
+- Create an account, save issue preferences, and choose daily, weekly, or no email updates.
+- Receive bill digest emails through Amazon SES once email delivery is enabled.
 
-## Project Overview
+The design is informed by civic-education systems such as Bijak Memilih and by research on plain-language legal communication, trust in AI summaries, political efficacy, and civic engagement.
 
-### The Problem
+## Repository Layout
 
-U.S. federal laws are written in dense legal language that most Americans can't easily understand. Research confirms that federal legislation has become *less* accessible over time despite decades of plain-language mandates (Martinez et al., 2024). At the same time, grassroots civic movements struggle with decentralized coordination — people want to act but don't know how to connect with organizations or representatives working on the issues they care about.
+The production app lives in [`civic-connect`](./civic-connect).
 
-CivicConnect solves this by translating active federal legislation into plain English, showing how each party has voted, and connecting citizens directly to advocacy organizations and their elected representatives.
+Important files and directories:
 
-### Who It's For
+- [`civic-connect/app`](./civic-connect/app) — Next.js App Router pages and API routes.
+- [`civic-connect/components`](./civic-connect/components) — React UI components for bill cards, account flows, Auto-Whip, and page sections.
+- [`civic-connect/lib`](./civic-connect/lib) — data access, bill ingestion helpers, AI providers, email generation, representative logic, caching, and utility code.
+- [`civic-connect/prisma`](./civic-connect/prisma) — Prisma schema for PostgreSQL.
+- [`civic-connect/scripts`](./civic-connect/scripts) — ingestion, backfill, setup, Bedrock, image, and email scripts.
+- [`civic-connect/AWS_ONBOARDING.md`](./civic-connect/AWS_ONBOARDING.md) — AWS maintainer runbook.
+- [`civic-connect/AWS_RUNTIME_SETUP.md`](./civic-connect/AWS_RUNTIME_SETUP.md) — production runtime and deployment details.
+- [`civic-connect/AWS_BEDROCK_SETUP.md`](./civic-connect/AWS_BEDROCK_SETUP.md) — Bedrock configuration notes.
+- [`civic-connect/AWS_CLOUDFRONT_GEOLOCATION.md`](./civic-connect/AWS_CLOUDFRONT_GEOLOCATION.md) — CloudFront location-header setup.
 
-- Citizens who want to understand what Congress is doing without a law degree
-- First-time voters and young civic participants
-- Advocacy organizations looking to reach engaged constituents
-- Journalists and researchers tracking legislative activity
+## Technical Architecture
 
-### What It Does
+### Application Layer
 
-CivicConnect is a web-first platform modeled on [Bijak Memilih](https://bijakmemilih.id)'s card-based information architecture, adapted for the American political system. It presents information through three card types:
+- **Framework:** Next.js 14 App Router.
+- **Language:** TypeScript.
+- **UI:** React components with Tailwind CSS.
+- **API surface:** Next.js route handlers under `/api/*`.
+- **ORM:** Prisma.
+- **Runtime build:** Next.js standalone Docker image.
 
-- **Issue Cards** — active bills with AI-generated plain-language summaries, status, sponsor, and topic tags
-- **Stance Cards** — side-by-side Democrat vs Republican vote breakdowns, sourced from recorded votes only
-- **Action Cards** — matched advocacy organizations, upcoming events, and one-click representative contact
+The app uses server-rendered routes for bill pages, account pages, organization pages, and API endpoints. Expensive AI work is designed to happen during ingestion and background jobs, not on the primary user request path.
 
-### Key Features
+### AWS Production Architecture
 
-- Live bill data from the Congress.gov API (119th Congress)
-- Google Gemini 1.5 Flash generates plain-language summaries at an 8th-grade reading level
-- Official bill title always shown alongside AI summary for transparency
-- User feedback mechanism to flag potentially biased summaries
-- Party vote breakdowns sourced from Congress.gov recorded votes
-- Advocacy organization directory with event listings and RSVP
-- Representative lookup by ZIP code via Google Civic Information API
-- Search and filter bills by topic area (12 categories)
-- Fully responsive — mobile-first design
-- Daily automated bill ingestion via Vercel cron
+Production is hosted on AWS, not GitHub Pages.
 
----
+GitHub is used for source control only. The public website is served from AWS infrastructure at [https://www.civicconnect.net](https://www.civicconnect.net).
 
-## Design Decisions
+Current AWS framework:
 
-### Tech Stack
+- **Amazon CloudFront** fronts the public site, terminates TLS, serves static assets, and can pass viewer geolocation headers into the app.
+- **Amazon ECS on Fargate** runs the `civic-connect-web` service as a containerized Next.js app.
+- **Amazon ECR** stores Docker images for the web service and background job images.
+- **Aurora PostgreSQL / RDS-compatible PostgreSQL** stores bill data, user preferences, summaries, representative stances, organizations, email logs, and image assignments.
+- **RDS Proxy** is used as the application database connection target in production.
+- **AWS Secrets Manager** stores sensitive runtime values such as `DATABASE_URL`, API keys, ingest secrets, and cron secrets.
+- **Amazon Bedrock** runs the LLM summarization and enrichment layer through Amazon Nova models.
+- **Amazon SES** sends transactional and digest email from the CivicConnect domain, currently configured to use `summary@civicconnect.net`.
+- **Amazon S3** stores curated topic-based image assets for bill imagery.
+- **CloudWatch Logs and alarms** provide runtime logging and deployment rollback signals.
+- **EventBridge Scheduler and lightweight AWS job dispatchers** are used for scheduled ingestion, digest dispatch, and representative-position refresh work.
 
-| Layer | Choice | Why |
-|---|---|---|
-| Framework | Next.js 14 App Router | Consolidates frontend and backend into one deployable unit. Server components fetch from Postgres with zero client-side waterfalls. |
-| Database | PostgreSQL via Prisma | Relational structure fits the bill/summary/stance relationships well. Prisma gives type-safe queries and easy migrations. |
-| AI | Google Gemini 1.5 Flash | Free tier (15 RPM, 1M tokens/day) is enough for batch ingestion of 250 bills. `responseMimeType: "application/json"` enforces structured output without fragile prompt parsing. |
-| Styling | Tailwind CSS | Utility-first keeps styles co-located with components and avoids stylesheet sprawl. |
-| Deployment | Docker Compose (local) + Vercel (production) | Docker gives a reproducible local environment. Vercel handles cron, edge functions, and zero-config deploys. |
+### Request Flow
 
-### Architecture
-
-```
-Browser
-  └── Next.js 14 App Router (server + client components)
-        ├── /bills, /bill/[id]     — Issue + Stance + Action cards
-        ├── /orgs, /orgs/register  — Advocacy org directory
-        ├── /bill/[id]/contact     — Rep contact by ZIP
-        └── /api/*                 — API routes (bills, orgs, reps, ingest)
-              ├── Congress.gov API     — bill metadata, text, votes
-              ├── Google Gemini API    — AI summarization
-              └── Google Civic API    — representative lookup
-        └── Prisma ORM → PostgreSQL
+```text
+User browser
+  -> CloudFront
+  -> ECS Fargate service: civic-connect-web
+  -> Next.js App Router page or API route
+  -> Prisma
+  -> RDS Proxy
+  -> Aurora/PostgreSQL
 ```
 
-### Trade-offs
+Static assets are served through CloudFront. Dynamic bill, account, representative, and digest behavior runs in the ECS-hosted Next.js application.
 
-**Server components by default** — all data fetching happens on the server. Faster page loads, no exposed API keys, but any interactive UI (buttons, forms) needs to be a separate client component. The rule here is simple: server components fetch data, client components handle interactivity.
+### Data Pipeline
 
-**Pre-generated summaries** — AI summaries are generated at ingest time and stored in the database. No LLM calls at page load, which keeps things fast and predictable. The trade-off is summaries don't refresh unless you re-run ingestion.
+```text
+Scheduled job
+  -> Congress.gov API
+  -> bill/action/vote normalization
+  -> PostgreSQL via Prisma
+  -> Bedrock/Nova summarization and classification
+  -> topic/image/organization matching
+  -> rendered bill cards, bill pages, account feeds, and email digests
+```
 
-**Congress.gov only (no ProPublica)** — ProPublica's Congress API was deprecated in 2024. All bill data and vote records now come from the official Congress.gov API, which provides the same vote data via its actions endpoint.
+Core data sources:
 
-**No user accounts** — RSVP uses email only. Keeps the MVP simple and avoids storing sensitive user data, but it means no follow-up notifications or saved bills. That's a planned future feature.
+- **Congress.gov API** — official bill metadata, sponsors, actions, text links, and legislative status.
+- **Google Civic Information API** — ZIP/address-based representative lookup.
+- **Local ZIP-to-district data** — fallback and enrichment for representative selection.
+- **Curated organization directory** — advocacy organizations matched by issue area.
+- **Curated S3 image pool** — issue-category images assigned to bills by topic.
 
-### Security
+### AI Layer
 
-- Google Civic API key is IP-restricted — server-side only, never sent to the browser
-- `/api/ingest` requires an `x-ingest-secret` header to prevent unauthorized triggering
-- No user PII collected beyond an email address for event RSVPs
-- Raw Prisma errors are never exposed to the client — API routes return generic error messages
+CivicConnect uses Amazon Bedrock for model calls. The production summarization path is designed around low-cost Amazon Nova models so the platform can stay free to users.
 
-### Scalability
+The AI pipeline generates structured bill content such as:
 
-- `force-dynamic` on all data pages keeps content fresh — accuracy matters more than cache performance for a civic information tool
-- Prisma indexes on `topicTags`, `status`, and `introducedAt` keep filtering fast as the bill count grows
-- Bill summaries are pre-generated and cached in the DB — AI costs don't scale with traffic
-- Vercel cron runs ingestion daily at 6am UTC without any manual intervention
+- three-paragraph plain-language summaries;
+- key provisions;
+- “why this matters”;
+- “who this affects”;
+- topic and taxonomy enrichment;
+- representative stance summaries when supporting evidence is available.
 
-### Nonpartisanship by Design
+Official bill metadata remains the source of truth for titles, sponsors, dates, actions, and status. AI summaries are stored in the database and displayed with official context so users can verify against the original source.
 
-This was a deliberate constraint throughout the build:
+### Email Layer
 
-- AI prompts explicitly instruct neutral language and prohibit editorializing
-- Official bill titles are always shown alongside AI summaries
-- Stance cards display vote counts only — no framing, no commentary
-- Users can flag summaries they think are biased; flag counts are stored for review
+Email is handled through Amazon SES.
 
----
+Supported flows:
 
-## How Kiro Was Used
+- Welcome email after account creation.
+- “Bills you might be interested in” onboarding digest.
+- Daily digest at the user’s local 9am if selected.
+- Weekly digest at the user’s local 9am if selected.
+- No recurring email if the user selects “never.”
 
-This project was built using [Kiro](https://kiro.dev) with spec-driven development, steering docs, agent hooks, and Autopilot mode throughout.
+Email delivery is guarded by environment configuration. The code can generate previews and dry runs without sending real email. Production sends should only occur when the SES sender/domain and recipient rules are valid.
 
-### Spec-Driven Development
+### Account And Personalization Layer
 
-Before writing any code, the full feature spec was written in `.kiro/specs/civic-connect/`:
+Users can create lightweight accounts and save:
 
-- `requirements.md` — functional and non-functional requirements
-- `design.md` — architecture, data models, API routes, and the UI system
+- email address;
+- issue interests;
+- email frequency preference;
+- timezone;
+- ZIP code;
+- selected senators and House representative.
 
-Having these in place before coding meant Kiro could reference them throughout the build to make consistent decisions about schema design, API structure, and component architecture. No architectural backtracking mid-build.
+The homepage and bill pages use this saved information to make the bill desk and Auto-Whip views more relevant.
 
-### Steering Docs
+## Deployment Model
 
-`.kiro/steering/` contains always-on context injected into every agent interaction automatically:
+Production deployment is AWS-based:
 
-- `project-overview.md` — stack, conventions, env vars, run instructions
-- `coding-standards.md` — component rules, API rules, nonpartisanship rules, styling rules
+1. Build the Next.js standalone Docker image from `civic-connect`.
+2. Push the image to Amazon ECR.
+3. Register a new ECS task definition revision.
+4. Update the `civic-connect-web` ECS service.
+5. Let ECS perform a rolling/canary deployment with healthy old tasks remaining online.
+6. Verify `/`, `/bills`, `/api/test`, one bill page, and any changed route.
+7. Invalidate CloudFront paths when cached HTML or static routing behavior changed.
 
-These acted as a persistent memory layer. Instead of repeating "use Tailwind only" or "server components fetch data directly" in every prompt, those rules were always present. It eliminated an entire class of inconsistency bugs across generated code.
+The project is **not** hosted on GitHub Pages. There should be no GitHub Pages production deployment for this repository. GitHub should remain the code repository; AWS is the production runtime.
 
-### Agent Hooks
+## Local Development
 
-`.kiro/hooks/typecheck-on-save.kiro.hook` runs `tsc --noEmit` automatically whenever a `.ts` or `.tsx` file is saved — catching type errors immediately rather than at build time.
-
-### Vibe Coding with Autopilot
-
-The entire application — 25+ files including Prisma schema, 8 API routes, 8 React components, 5 pages, ingestion scripts, Docker setup, and all configuration — was built through natural language conversation with Kiro in Autopilot mode. The workflow was: describe what you want, review what Kiro produces, refine with follow-up prompts. Spec and steering docs provided the guardrails that kept output consistent across sessions.
-
----
-
-## Learning Journey & Forward Thinking
-
-### Challenges
-
-- **ProPublica deprecation** — discovered mid-build that ProPublica's Congress API was shut down in 2024. Pivoted to Congress.gov's own vote endpoints with minimal disruption, but it required updating both the ingestion script and the design doc.
-- **Next.js config format** — Next 14.2 doesn't support `next.config.ts`. The config needs to be `.mjs`. Small thing, but it caused a confusing build error early on.
-- **Static prerendering with a database** — Next.js tries to statically prerender pages at build time. Any page that calls Prisma at build time fails without a database available. Fixed with `export const dynamic = "force-dynamic"` on every data page.
-- **Structured AI output** — getting Gemini to return consistent JSON required `responseMimeType: "application/json"` in the API call, not just prompt instructions. Once that was in place, the output was reliable.
-
-### Lessons
-
-Spec-first development pays off — having requirements and design documents written before any code was generated meant the architecture was decided upfront. There was no "wait, this doesn't fit the data model" moment halfway through.
-
-Steering docs are underrated — injecting project conventions automatically into every agent interaction removed a whole category of bugs from inconsistent patterns across files. Worth spending time on these before starting a build.
-
-Constraints produce better output — the nonpartisanship rules, the card-based UI system, and the "server components fetch data" rule all acted as creative constraints that made the codebase more coherent. Kiro worked better with clear rules than open-ended prompts.
-
-### Future Plans
-
-- **Phase 2** — richer stance cards with party platform excerpts and official press statements
-- **Phase 3** — state-level legislation via NCSL API integration
-- **Phase 4** — email/SMS alerts when bills you follow advance in Congress
-- **Phase 5** — multilingual summaries (Spanish, Mandarin, Vietnamese) to reach non-English-speaking citizens
-- **Bias audit dashboard** — admin view of flagged summaries with a review and correction workflow
-- User accounts with saved bills and personalized topic feeds
-
----
-
-## Setup & Running
-
-### Prerequisites
-
-- Docker Desktop
-- API keys (see Environment Variables below)
-
-### Quick Start (Docker)
+From the app directory:
 
 ```bash
-git clone <your-repo-url>
 cd civic-connect
-cp .env.local.example .env.local   # fill in your API keys
-docker compose up --build
+npm install
 ```
 
-App runs at `http://localhost:3000`. On first boot Docker will automatically:
-1. Start PostgreSQL
-2. Run `prisma db push` (create tables)
-3. Run `npm run ingest` (fetch 250 bills + generate AI summaries)
-4. Start the Next.js app
+Create `.env.local` with the required local or shared development values:
 
-### Without Docker
+```env
+DATABASE_URL=
+CONGRESS_API_KEY=
+GOOGLE_CIVIC_API_KEY=
+
+AWS_REGION=us-east-1
+AWS_BEDROCK_MODEL=amazon.nova-micro-v1:0
+SES_FROM_EMAIL=summary@civicconnect.net
+SES_REPLY_TO=summary@civicconnect.net
+
+APP_BASE_URL=https://www.civicconnect.net
+CRON_SECRET=
+INGEST_SECRET=
+```
+
+Sync the database schema and seed supporting data:
 
 ```bash
-npm install
 npx prisma db push
-npm run ingest
-npm run seed:orgs   # loads the advocacy organization directory
+npm run seed:orgs
+npm run seed:reps
+```
+
+Run the app locally:
+
+```bash
 npm run dev
 ```
 
-### Environment Variables
-
-```env
-CONGRESS_API_KEY=        # free at api.congress.gov
-GOOGLE_GEMINI_KEY=       # free at aistudio.google.com
-GOOGLE_CIVIC_API_KEY=    # console.cloud.google.com — use IP restriction
-DATABASE_URL=            # postgresql://user:pass@host:5432/civicconnect
-INGEST_SECRET=           # any random string
-```
-
-### Manual Bill Ingestion
+Build before deployment:
 
 ```bash
-# Via script (local)
-npm run ingest
-
-# Via API (production)
-curl -X POST https://your-domain.com/api/ingest \
-  -H "x-ingest-secret: your_secret"
+npm run build
 ```
 
----
+Useful scripts:
 
-## Deployment (Vercel)
+```bash
+npm run ingest
+npm run backfill:dates
+npm run backfill:taxonomy
+npm run enrich:tags
+npm run setup:search
+```
 
-1. Push to GitHub
-2. Import repo in Vercel
-3. Add all environment variables in Vercel dashboard
-4. Add a Postgres database (Vercel Postgres or Neon)
-5. Deploy — `vercel.json` configures the daily cron automatically
+## Operational Notes
 
----
+- Production database access should use Aurora/RDS Proxy, not Neon.
+- Production AI should use Bedrock, not direct consumer AI APIs.
+- Production email should use SES from the CivicConnect domain.
+- Request-time AI generation should be avoided on user-facing paths; generate summaries and images in background jobs.
+- Bill dates and statuses should come from Congress.gov metadata, not AI output.
+- Bill images should come from the S3-backed topic image pool when available.
+- Secrets should live in AWS Secrets Manager, not in README files, commits, or chat.
+- ECS deployments should preserve desired capacity and avoid downtime.
 
-## Data Sources
+## Product And Research Context
 
-- [Congress.gov API](https://api.congress.gov) — U.S. Library of Congress, bill metadata and vote records
-- [Google Civic Information API](https://developers.google.com/civic-information) — representative lookup by address
-- [Google Gemini API](https://aistudio.google.com) — AI summarization
+CivicConnect is also part of an HCI/civic-technology research project studying whether AI-summarized, card-based legislative information improves perceived comprehension, trust calibration, and civic engagement.
 
----
+The study design uses a three-wave longitudinal evaluation with validated instruments including SUS, Human-Generative AI Trust measures, AI literacy items, internal political efficacy, and political engagement measures. The product surface under evaluation is the issue-card and bill-page experience: official bill context plus AI-generated plain-language explanation.
 
 ## References
 
-- Kornilova & Eidelman (2019). BillSum: A Corpus for Automatic Summarization of US Legislation. EMNLP 2019.
-- Martinez, Mollica & Gibson (2024). So Much for Plain Language. PNAS.
-- Legal Lay Summarization (2025). Artificial Intelligence Review.
+- U.S. Library of Congress, [Congress.gov API](https://api.congress.gov)
+- Google, [Civic Information API](https://developers.google.com/civic-information)
+- Bijak Memilih, [Vote Wisely](https://bijakmemilih.id)
+- Kornilova and Eidelman, BillSum: A Corpus for Automatic Summarization of US Legislation
+- Martinez, Mollica, and Gibson, So Much for Plain Language

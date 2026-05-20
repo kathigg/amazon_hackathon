@@ -1,5 +1,7 @@
 # CivicConnect
 
+**Live project:** [https://www.civicconnect.net](https://www.civicconnect.net)
+
 Plain-language federal bill coverage with personalized reading desks, representative stance tracking, advocacy organization matching, and scheduled email briefs.
 
 ## Stack
@@ -22,7 +24,9 @@ Use AWS infrastructure for production runtime and data services.
 - Production AI: Bedrock
 - Production geolocation headers: CloudFront
 
-Do not assume Neon is the target database for this project.
+GitHub is source control only. CivicConnect is not hosted on GitHub Pages, and production should not be deployed through GitHub Pages.
+
+Do not assume Neon, Vercel, or GitHub Pages is the target runtime for this project.
 
 ## Local setup
 
@@ -91,7 +95,7 @@ These routes are expected to run on a schedule:
 - `/api/scrape/representatives`
   Refreshes representative position evidence in incremental batches.
 
-The repo includes `vercel.json` cron entries for reference. In AWS, mirror those schedules with EventBridge Scheduler or an equivalent job runner.
+In AWS, run these schedules with EventBridge Scheduler, Lambda dispatchers, or an equivalent ECS-compatible job runner.
 
 ## Representative and location flow
 
