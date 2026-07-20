@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
-import { cookies } from "next/headers";
 import BillLookup from "@/components/BillLookup";
 import ClientErrorBoundary from "@/components/ClientErrorBoundary";
 import BillFeedCard from "@/components/BillFeedCard";
 import BillIssueVisual from "@/components/BillIssueVisual";
-import HomeFeedMemory from "@/components/HomeFeedMemory";
 import HomeAccountPrompt from "@/components/HomeAccountPrompt";
 import MilestonePill from "@/components/MilestonePill";
 import { getActiveTaxonomy } from "@/lib/taxonomy";
@@ -23,10 +21,6 @@ import {
 import { formatTopicTag } from "@/lib/topics";
 import { getSummaryPreview } from "@/lib/bill-summary";
 import { withTimeout } from "@/lib/with-timeout";
-import {
-  HOME_SEEN_BILLS_COOKIE,
-  parseSeenBillIds,
-} from "@/lib/home-feed-history";
 
 const ACTIVE_TAXONOMY = getActiveTaxonomy();
 const HOME_FEED_TIMEOUT_MS = 2_500;
@@ -38,11 +32,11 @@ const getCachedHomeCandidates = unstable_cache(
   async (): Promise<HomeBillFeedItem[]> => {
     return getHomeBillCandidates();
   },
-  ["home-feed-candidates-v1"],
-  { revalidate: 60 }
+  ["home-showcase-candidates-v1"],
+  { revalidate: 86_400 }
 );
 
-async function loadHomeFeed(seenBillIds: string[]): Promise<HomeBillFeedItem[]> {
+async function loadHomeFeed(): Promise<HomeBillFeedItem[]> {
   const candidates = await withTimeout(
     () => getCachedHomeCandidates().catch(() => [] as HomeBillFeedItem[]),
     HOME_FEED_TIMEOUT_MS,
@@ -51,7 +45,7 @@ async function loadHomeFeed(seenBillIds: string[]): Promise<HomeBillFeedItem[]> 
 
   return selectHomeFeedBills({
     candidates,
-    seenBillIds,
+    seenBillIds: [],
     take: HOME_FEED_SIZE,
   });
 }
@@ -61,10 +55,7 @@ function formatRepresentativeOpinionCount(count: number): string {
 }
 
 export default async function HomePage() {
-  const seenBillIds = parseSeenBillIds(
-    cookies().get(HOME_SEEN_BILLS_COOKIE)?.value
-  );
-  const bills = await loadHomeFeed(seenBillIds);
+  const bills = await loadHomeFeed();
   const leadBill = bills[0];
   const railBills = bills.slice(1, 4);
   const frontPageBills = bills.slice(0, 6);
@@ -79,12 +70,11 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen">
-      <HomeFeedMemory billIds={bills.map((bill) => bill.id)} />
       <HomeAccountPrompt />
       <section className="border-b border-black/10">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/50 sm:px-6 lg:px-8">
-          <span>Front Page</span>
-          <span>New mix on every visit</span>
+          <span>Showcase Edition</span>
+          <span>Frozen from existing bill data</span>
         </div>
       </section>
 
@@ -95,7 +85,7 @@ export default async function HomePage() {
               <div className="grid gap-10 xl:grid-cols-[minmax(0,1.5fr)_320px]">
                 <article>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-civic-red">
-                    Featured Bill
+                    Featured Showcase Bill
                   </p>
                   <Link href={`/bill/${leadBill.id}`} className="group block">
                     <h1 className="mt-4 font-display text-5xl leading-[0.95] text-navy transition-colors group-hover:text-civic-blue sm:text-6xl">
@@ -114,6 +104,7 @@ export default async function HomePage() {
                       {leadBill.representativeOpinionCount > 0 && (
                         <span>{formatRepresentativeOpinionCount(leadBill.representativeOpinionCount)}</span>
                       )}
+                      <span>{Math.round(leadBill.homeCompletenessScore * 100)}% complete profile</span>
                       {leadProgressStage && (
                         <MilestonePill
                           stage={leadProgressStage}
@@ -155,7 +146,7 @@ export default async function HomePage() {
 
                 <aside>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-                    More from the docket
+                    More complete examples
                   </p>
                   <div className="mt-4 space-y-4">
                     {railBills.map((bill, index) => {
@@ -186,6 +177,9 @@ export default async function HomePage() {
                               {formatRepresentativeOpinionCount(bill.representativeOpinionCount)}
                             </p>
                           )}
+                          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-navy/45">
+                            {Math.round(bill.homeCompletenessScore * 100)}% complete profile
+                          </p>
                           {stage && (
                             <div className="mt-2">
                               <MilestonePill stage={stage} billType={bill.type} />
@@ -204,10 +198,10 @@ export default async function HomePage() {
             <div className="flex items-end justify-between gap-4 border-b border-black/10 pb-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-navy/45">
-                  Fresh docket
+                  Pinned showcase
                 </p>
                 <h2 className="mt-2 font-display text-4xl text-navy">
-                  A new mix of bills
+                  Bills with the richest existing coverage
                 </h2>
               </div>
               <Link

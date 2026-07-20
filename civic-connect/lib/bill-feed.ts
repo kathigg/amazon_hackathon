@@ -7,6 +7,11 @@ import {
   toProgressStage,
   type ProgressStage,
 } from "@/lib/bill-progress";
+import {
+  isSummaryPlaceholder,
+  splitParagraphs,
+  splitWhyAndWho,
+} from "@/lib/bill-summary";
 
 export const billCardSelect = {
   id: true,
@@ -21,10 +26,13 @@ export const billCardSelect = {
   latestActionText: true,
   topicTags: true,
   imageUrl: true,
+  imageAssetId: true,
   viewCount: true,
   summary: {
     select: {
       plainLanguage: true,
+      keyProvisions: true,
+      whyItMatters: true,
     },
   },
 } satisfies Prisma.BillSelect;
@@ -36,6 +44,7 @@ export type BillWithSummary = Prisma.BillGetPayload<{
 export type HomeBillFeedItem = BillWithSummary & {
   representativeOpinionCount: number;
   homeFeedScore: number;
+  homeCompletenessScore: number;
 };
 
 export type BillFeedSort = "latest" | "hot";
@@ -44,6 +53,8 @@ const HOT_CANDIDATE_LIMIT = 32;
 const HOME_CANDIDATE_LIMIT = 160;
 const HOME_RECENT_LIMIT = 80;
 const HOME_STAGE_LIMIT = 32;
+const HOME_SUMMARY_LIMIT = 120;
+const HOME_REPRESENTATIVE_LIMIT = 80;
 const HOME_PROGRESS_PRIORITY: ProgressStage[] = [
   "enacted",
   "to_president",
@@ -149,6 +160,20 @@ async function withResolvedBillImages<T extends BillWithSummary>(
 }
 
 export async function getHomeBillCandidates(): Promise<HomeBillFeedItem[]> {
+  const representativeRows = await prisma.repStance.groupBy({
+    by: ["billId"],
+    _count: {
+      billId: true,
+    },
+    orderBy: {
+      _count: {
+        billId: "desc",
+      },
+    },
+    take: HOME_REPRESENTATIVE_LIMIT,
+  });
+  const representativeHeavyBillIds = representativeRows.map((row) => row.billId);
+
   const stageQueries = HOME_PROGRESS_PRIORITY.map((stage) =>
     prisma.bill.findMany({
       where: {
@@ -165,7 +190,12 @@ export async function getHomeBillCandidates(): Promise<HomeBillFeedItem[]> {
     })
   );
 
-  const [recentBills, ...stageResults] = await Promise.all([
+  const [
+    recentBills,
+    summaryRichBills,
+    representativeHeavyBills,
+    ...stageResults
+  ] = await Promise.all([
     prisma.bill.findMany({
       take: HOME_RECENT_LIMIT,
       orderBy: [
@@ -175,11 +205,40 @@ export async function getHomeBillCandidates(): Promise<HomeBillFeedItem[]> {
       ],
       select: billCardSelect,
     }),
+    prisma.bill.findMany({
+      where: {
+        summary: {
+          isNot: null,
+        },
+      },
+      take: HOME_SUMMARY_LIMIT,
+      orderBy: [
+        { latestActionAt: { sort: "desc", nulls: "last" } },
+        { introducedAt: "desc" },
+        { viewCount: "desc" },
+      ],
+      select: billCardSelect,
+    }),
+    representativeHeavyBillIds.length > 0
+      ? prisma.bill.findMany({
+          where: {
+            id: {
+              in: representativeHeavyBillIds,
+            },
+          },
+          select: billCardSelect,
+        })
+      : Promise.resolve([] as BillWithSummary[]),
     ...stageQueries,
   ]);
 
   const billsById = new Map<string, BillWithSummary>();
-  for (const bill of [...stageResults.flat(), ...recentBills]) {
+  for (const bill of [
+    ...representativeHeavyBills,
+    ...summaryRichBills,
+    ...stageResults.flat(),
+    ...recentBills,
+  ]) {
     billsById.set(bill.id, bill);
   }
 
@@ -203,20 +262,13 @@ export async function getHomeBillCandidates(): Promise<HomeBillFeedItem[]> {
 
 export function selectHomeFeedBills({
   candidates,
-  seenBillIds,
   take,
 }: {
   candidates: HomeBillFeedItem[];
   seenBillIds: string[];
   take: number;
 }): HomeBillFeedItem[] {
-  const seenBillIdSet = new Set(seenBillIds.map((id) => id.toLowerCase()));
-  const unseenCandidates = candidates.filter(
-    (bill) => !seenBillIdSet.has(bill.id.toLowerCase())
-  );
-  const pool = unseenCandidates.length > 0 ? unseenCandidates : candidates;
-
-  return selectMixedProgressFeed(pool, take);
+  return candidates.slice(0, take);
 }
 
 async function getRepresentativeOpinionCounts(
@@ -260,6 +312,11 @@ function scoreHomeFeedCandidates(
     return {
       ...bill,
       representativeOpinionCount,
+      homeCompletenessScore: getHomeCompletenessScore({
+        bill,
+        representativeOpinionCount,
+        maxOpinionLog,
+      }),
       homeFeedScore: getHomeFeedScore({
         bill,
         representativeOpinionCount,
@@ -299,85 +356,61 @@ function getHomeFeedScore({
     maxOpinionLog === 0
       ? 0
       : Math.log1p(representativeOpinionCount) / maxOpinionLog;
+  const completenessScore = getHomeCompletenessScore({
+    bill,
+    representativeOpinionCount,
+    maxOpinionLog,
+  });
 
   return (
-    progressScore * 0.52 +
-    opinionScore * 0.24 +
-    recencyScore * 0.18 +
-    viewsScore * 0.06
+    completenessScore * 0.62 +
+    opinionScore * 0.20 +
+    progressScore * 0.12 +
+    recencyScore * 0.04 +
+    viewsScore * 0.02
   );
 }
 
-function selectMixedProgressFeed(
-  candidates: HomeBillFeedItem[],
-  take: number
-): HomeBillFeedItem[] {
-  const buckets = new Map<ProgressStage, HomeBillFeedItem[]>(
-    HOME_PROGRESS_PRIORITY.map((stage) => [stage, []])
+function getHomeCompletenessScore({
+  bill,
+  representativeOpinionCount,
+  maxOpinionLog,
+}: {
+  bill: BillWithSummary;
+  representativeOpinionCount: number;
+  maxOpinionLog: number;
+}): number {
+  const plainLanguage = bill.summary?.plainLanguage ?? "";
+  const hasPlainLanguage = !isSummaryPlaceholder(plainLanguage);
+  const paragraphScore = hasPlainLanguage
+    ? Math.min(splitParagraphs(plainLanguage).length, 3) / 3
+    : 0;
+  const provisionScore = Math.min(
+    bill.summary?.keyProvisions?.length ?? 0,
+    5
+  ) / 5;
+  const whyWho = splitWhyAndWho(bill.summary?.whyItMatters ?? "");
+  const whyScore = whyWho.why ? 1 : 0;
+  const whoScore = whyWho.who ? 1 : 0;
+  const opinionScore =
+    maxOpinionLog === 0
+      ? 0
+      : Math.log1p(representativeOpinionCount) / maxOpinionLog;
+  const imageScore = bill.imageAssetId || bill.imageUrl ? 1 : 0;
+  const progressScore = toProgressStage(bill.progressStage) ? 1 : 0;
+  const actionScore = bill.latestActionText || bill.latestActionAt ? 1 : 0;
+
+  return (
+    (hasPlainLanguage ? 0.18 : 0) +
+    paragraphScore * 0.12 +
+    provisionScore * 0.14 +
+    whyScore * 0.14 +
+    whoScore * 0.14 +
+    opinionScore * 0.18 +
+    imageScore * 0.05 +
+    progressScore * 0.03 +
+    actionScore * 0.02
   );
-
-  for (const bill of candidates) {
-    const stage = toProgressStage(bill.progressStage) ?? "introduced";
-    buckets.get(stage)?.push(bill);
-  }
-
-  for (const bucket of Array.from(buckets.values())) {
-    bucket.sort(compareHomeFeedItems);
-  }
-
-  const selected: HomeBillFeedItem[] = [];
-  const selectedIds = new Set<string>();
-  const mixedStageOrder = [
-    ...HOME_PROGRESS_PRIORITY,
-    ...HOME_PROGRESS_PRIORITY,
-  ];
-
-  for (const stage of mixedStageOrder) {
-    if (selected.length >= take) {
-      break;
-    }
-
-    const bill = takeRandomStrongCandidate(buckets.get(stage) ?? []);
-    if (bill && !selectedIds.has(bill.id)) {
-      selected.push(bill);
-      selectedIds.add(bill.id);
-    }
-  }
-
-  if (selected.length < take) {
-    const remainingCandidates = candidates
-      .filter((bill) => !selectedIds.has(bill.id))
-      .map((bill) => ({
-        bill,
-        score: bill.homeFeedScore + Math.random() * 0.08,
-      }))
-      .sort((left, right) => right.score - left.score)
-      .map(({ bill }) => bill);
-
-    for (const bill of remainingCandidates) {
-      if (selected.length >= take) {
-        break;
-      }
-      selected.push(bill);
-      selectedIds.add(bill.id);
-    }
-  }
-
-  return selected;
-}
-
-function takeRandomStrongCandidate(
-  bucket: HomeBillFeedItem[]
-): HomeBillFeedItem | null {
-  if (bucket.length === 0) {
-    return null;
-  }
-
-  const windowSize = Math.min(bucket.length, 6);
-  const selectedIndex = Math.floor(Math.random() * windowSize);
-  const [bill] = bucket.splice(selectedIndex, 1);
-
-  return bill ?? null;
 }
 
 function compareHomeFeedItems(
