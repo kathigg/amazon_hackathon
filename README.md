@@ -1,5 +1,9 @@
 # CivicConnect
 
+[![Watch the CivicConnect demo](./media/CivicConnect-demo-thumbnail.png)](./media/CivicConnect-demo.mp4)
+
+**[Watch the CivicConnect demo (2:40)](./media/CivicConnect-demo.mp4)**
+
 **Live project:** [https://www.civicconnect.net](https://www.civicconnect.net)
 
 CivicConnect is a free legislative tracking and grassroots advocacy platform that translates active U.S. federal legislation into plain-language, card-based summaries. It is built for people who want to understand what Congress is doing without needing to read dense statutory text, pay for lobbyist-oriented tools, or know where to look across disconnected government websites.
