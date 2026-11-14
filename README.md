@@ -1,8 +1,8 @@
 # CivicConnect
 
-[![Watch the CivicConnect demo](./media/CivicConnect-demo-thumbnail.png)](./media/CivicConnect-demo.mp4)
+[![Watch the CivicConnect demo](./media/CivicConnect-demo-thumbnail.png)](https://github.com/kathigg/amazon_hackathon/raw/refs/heads/main/media/CivicConnect-demo.mp4)
 
-**[Watch the CivicConnect demo (2:40)](./media/CivicConnect-demo.mp4)**
+**[Watch the CivicConnect demo (2:40)](https://github.com/kathigg/amazon_hackathon/raw/refs/heads/main/media/CivicConnect-demo.mp4)**
 
 **Live project:** [https://www.civicconnect.net](https://www.civicconnect.net)
 
